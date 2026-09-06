@@ -5,9 +5,24 @@ from app.chatbot.router.schemas import RouteDecision
 from app.chatbot.core.models import analysis_model
 from app.chatbot.state import AgentState
 
-def classify_domain(state: AgentState) -> AgentState: 
-    
+def classify_domain(state: AgentState) -> AgentState:
+
     structured_model = analysis_model.with_structured_output(RouteDecision)
+    
+    recent = state.get("messages", [])[-6:]  # ~last 3 turns
+    transcript = "\n".join(
+        f"{'User' if isinstance(m, HumanMessage) else 'Assistant'}: {m.content}"
+        for m in recent
+    )
+    # Sticky: a chart stays visible in the thread once produced, so this reads
+    # "a chart exists in this conversation", not "last turn was a chart".
+    chart_on_screen = bool(state.get("chart_spec"))
+
+    context = (
+        (f"Conversation so far:\n{transcript}\n\n" if transcript else "")
+        + ("A data chart is currently displayed to the user.\n\n" if chart_on_screen else "")
+        + f"Latest user message:\n{state['user_query']}"
+    )
 
     decision = structured_model.invoke(
         [
@@ -15,7 +30,7 @@ def classify_domain(state: AgentState) -> AgentState:
                 content=ROUTER_SYSTEM_PROMPT
             ),
             HumanMessage(
-                content=state["user_query"]
+                content=context
             )
         ]
     )

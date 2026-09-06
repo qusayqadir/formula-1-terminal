@@ -115,9 +115,32 @@ def _sse(event: dict) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
+def _parse_rows(raw: object) -> list:
+    """The data-viz subgraph stores query rows as a JSON string (sql_db_query
+    -> json.dumps). Parse it back to a list for the chart event; anything
+    unparseable becomes [] so the chart renders empty instead of breaking the
+    stream."""
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (json.JSONDecodeError, ValueError):
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
+
+
 async def stream_chat(user_query: str, thread_id: str) -> AsyncIterator[str]:
     config = {"configurable": {"thread_id": thread_id}}
     field_streamers: dict[tuple, _ReasonFieldStreamer] = {}
+
+    # The data-viz subgraph sets chart_spec (generate_data_visual) and the raw
+    # rows (execute_query) in node updates that arrive BEFORE the terminal
+    # `respond` node. Hold the latest of each so we can emit one structured
+    # chart event next to the final text answer.
+    pending_chart_spec: dict | None = None
+    pending_rows: object = None
 
     yield _sse({"type": "thread", "thread_id": thread_id})
 
@@ -176,11 +199,23 @@ async def stream_chat(user_query: str, thread_id: str) -> AsyncIterator[str]:
                         )
         elif mode == "updates":
             for node_name, node_output in chunk.items():
-                if (
-                    node_output
-                    and node_name in FINAL_ANSWER_NODES
-                    and "final_answer" in node_output
-                ):
+                if not node_output:
+                    continue
+
+                if "chart_spec" in node_output:
+                    pending_chart_spec = node_output["chart_spec"]
+                if "data_visual_response" in node_output:
+                    pending_rows = node_output["data_visual_response"]
+
+                if node_name in FINAL_ANSWER_NODES and "final_answer" in node_output:
+                    if pending_chart_spec:
+                        yield _sse(
+                            {
+                                "type": "chart",
+                                "spec": pending_chart_spec,
+                                "data": _parse_rows(pending_rows),
+                            }
+                        )
                     yield _sse(
                         {"type": "final", "content": node_output["final_answer"]}
                     )

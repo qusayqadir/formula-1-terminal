@@ -60,9 +60,8 @@ def build_data_visual_graph():
         {
             "rewrite_query" : "rewrite_query",
             "generate_data_visual" : "generate_data_visual",
-            "respond" : "respond",
         }
-    )
+    ) 
 
     builder.add_edge("rewrite_query", "generate_response")
     builder.add_edge("generate_data_visual", "respond")
@@ -74,3 +73,8 @@ def build_data_visual_graph():
 data_visual_graph = build_data_visual_graph() 
 # data_visual_graph.get_graph().draw_mermaid_png()
 
+# # data_visual_graph → langgraph-images/data_visual_graph.png
+# PYTHONPATH=. .venv/bin/python -c "from app.chatbot.data_visual.graph import data_visual_graph; open('langgraph-images/data_visual_graph.png','wb').write(data_visual_graph.get_graph().draw_mermaid_png())"
+
+# # terminal_chat → langgraph-images/final-chat-graph.png
+# PYTHONPATH=. .venv/bin/python -c "from app.chatbot.graph import terminal_chat; open('langgraph-images/final-chat-graph.png','wb').write(terminal_chat.get_graph(xray=True).draw_mermaid_png())"

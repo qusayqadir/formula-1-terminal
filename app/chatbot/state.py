@@ -77,9 +77,10 @@ class AgentState(TypedDict, total=False):
     validate_sql_response_confidence: float
     validate_sql_response_reason: str 
     validation_sql_count: int 
-    data_visual_response: str 
-    graph_of_choice: str 
-    chart_spec: dict 
+    data_visual_response: str      # raw SQL rows (JSON string)
+    graph_of_choice: str
+    chart_spec: dict
+    data_visual_answer: str        # agent's natural-language summary of the rows
 
 
     #Output

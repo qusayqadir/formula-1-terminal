@@ -8,25 +8,14 @@
  *  with an apple-blue send button. */
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUp, ChevronDown, RotateCcw, X } from "lucide-react";
+import { Archive, ArrowUp, X } from "lucide-react";
 import { useFilters } from "@/state/filters";
+import { useChatSessions } from "@/state/chatSessions";
 import { ThinkingDots } from "@/components/ui/ThinkingDots";
 import { SiriOrb } from "@/components/ui/SiriOrb";
-
-interface ThinkingEvent {
-  kind: "tool_call" | "reason";
-  node?: string;
-  tool?: string;
-  field?: string;
-  content?: string;
-}
-
-interface Message {
-  id: number;
-  role: "user" | "assistant";
-  content: string;
-  thinking?: ThinkingEvent[];
-}
+import { MessageThread } from "@/features/chat/MessageThread";
+import type { ChatChartSpec, ChatChartRow } from "@/features/chat/ChatChart";
+import type { ChartPayload, ThinkingEvent } from "@/features/chat/types";
 
 const SUGGESTIONS = [
   "Who won the 2021 drivers' championship, and by how many points?",
@@ -47,6 +36,7 @@ interface RawThinkingEvent {
 interface StreamHandlers {
   onThreadId: (threadId: string) => void;
   onThinking: (event: RawThinkingEvent) => void;
+  onChart: (chart: ChartPayload) => void;
   onFinal: (content: string) => void;
 }
 
@@ -86,12 +76,15 @@ async function streamChat(
       const event = JSON.parse(data) as
         | { type: "thread"; thread_id: string }
         | ({ type: "thinking" } & RawThinkingEvent)
+        | { type: "chart"; spec: ChatChartSpec; data: ChatChartRow[] }
         | { type: "final"; content: string };
 
       if (event.type === "thread") handlers.onThreadId(event.thread_id);
       else if (event.type === "thinking") {
         const { type: _type, ...thinkingEvent } = event;
         handlers.onThinking(thinkingEvent);
+      } else if (event.type === "chart") {
+        handlers.onChart({ spec: event.spec, data: event.data });
       } else if (event.type === "final") handlers.onFinal(event.content);
     }
   }
@@ -99,15 +92,17 @@ async function streamChat(
 
 export function ChatPage() {
   const { filters } = useFilters();
-  const [messages, setMessages] = useState<Message[]>([]);
+  // The chat renders whichever session is active; sessions live in the shared
+  // provider (multiple tabs, all in-memory — a refresh clears them). Ephemeral
+  // UI state (draft, streaming indicator) stays local.
+  const { activeSession, activeId, updateMessages, setThreadId, newChat, nextId } =
+    useChatSessions();
+  const messages = activeSession.messages;
   const [draft, setDraft] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [liveThinking, setLiveThinking] = useState<ThinkingEvent[]>([]);
-  const [expandedThinking, setExpandedThinking] = useState<Set<number>>(new Set());
-  const nextId = useRef(1);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const threadIdRef = useRef<string | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -186,7 +181,11 @@ export function ChatPage() {
   const send = async (text: string) => {
     const question = text.trim();
     if (!question) return;
-    setMessages((m) => [...m, { id: nextId.current++, role: "user", content: question }]);
+    // Pin this turn to the session it was asked in, so the answer lands here
+    // even if the user switches tabs mid-stream.
+    const sid = activeId;
+    const startThreadId = activeSession.threadId;
+    updateMessages(sid, (m) => [...m, { id: nextId.current++, role: "user", content: question }]);
     setDraft("");
     setComposerOpen(true);
     inputRef.current?.focus();
@@ -197,14 +196,17 @@ export function ChatPage() {
 
     const assistantId = nextId.current++;
     const thinkingEvents: ThinkingEvent[] = [];
+    // The chart event arrives just before the final text; stash it and fold it
+    // into the assistant message when `final` lands.
+    let pendingChart: ChartPayload | null = null;
     // Maps "node:field" -> index in thinkingEvents/liveThinking for a
     // reason_delta line that's still being appended to.
     const openLines = new Map<string, number>();
 
     try {
-      await streamChat(question, threadIdRef.current, {
+      await streamChat(question, startThreadId, {
         onThreadId: (threadId) => {
-          threadIdRef.current = threadId;
+          setThreadId(sid, threadId);
         },
         // Rendered live while the agent works. tool_call lines appear
         // instantly; reason text is fed into the typewriter reveal buffer
@@ -242,18 +244,27 @@ export function ChatPage() {
           }
           if (event.done) openLines.delete(key);
         },
+        onChart: (chart) => {
+          pendingChart = chart;
+        },
         onFinal: (content) => {
           setThinking(false);
           setLiveThinking([]);
           stopReveal();
-          setMessages((m) => [
+          updateMessages(sid, (m) => [
             ...m,
-            { id: assistantId, role: "assistant", content, thinking: thinkingEvents },
+            {
+              id: assistantId,
+              role: "assistant",
+              content,
+              thinking: thinkingEvents,
+              chart: pendingChart ?? undefined,
+            },
           ]);
         },
       });
     } catch (error) {
-      setMessages((m) => [
+      updateMessages(sid, (m) => [
         ...m,
         {
           id: assistantId,
@@ -310,67 +321,7 @@ export function ChatPage() {
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {messages.map((m) =>
-                m.role === "user" ? (
-                  <div key={m.id} className="flex justify-end">
-                    <div className="max-w-[85%] rounded-2xl rounded-br-md border border-stroke bg-ink/[0.05] px-4 py-2.5">
-                      <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">
-                        {m.content}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div key={m.id} className="flex gap-3">
-                    <span
-                      aria-hidden
-                      className="mt-1 h-4 w-[3px] flex-none -skew-x-12 rounded-[1px] bg-accent"
-                    />
-                    <div className="min-w-0">
-                      <p className="eyebrow !text-mut">F1 Terminal</p>
-                      {m.thinking && m.thinking.length > 0 && (
-                        <div className="mt-1.5">
-                          <button
-                            onClick={() =>
-                              setExpandedThinking((prev) => {
-                                const next = new Set(prev);
-                                if (next.has(m.id)) next.delete(m.id);
-                                else next.add(m.id);
-                                return next;
-                              })
-                            }
-                            className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.1em] text-mut transition-colors hover:text-sub"
-                          >
-                            <ChevronDown
-                              size={11}
-                              className={`transition-transform ${expandedThinking.has(m.id) ? "rotate-180" : ""}`}
-                            />
-                            Thinking ({m.thinking.length})
-                          </button>
-                          {expandedThinking.has(m.id) && (
-                            <ul className="mt-1.5 space-y-1 border-l border-stroke pl-2.5">
-                              {m.thinking.map((t, i) => (
-                                <li key={i} className="font-mono text-[11px] leading-relaxed text-sub">
-                                  {t.kind === "tool_call" ? (
-                                    <>
-                                      <span className="text-mut">calling</span> {t.tool}
-                                    </>
-                                  ) : (
-                                    t.content
-                                  )}
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      )}
-                      <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-ink">
-                        {m.content}
-                      </p>
-                    </div>
-                  </div>
-                ),
-              )}
+            <MessageThread messages={messages}>
               {thinking && (
                 <div className="flex gap-3">
                   <span
@@ -410,7 +361,7 @@ export function ChatPage() {
                   </div>
                 </div>
               )}
-            </div>
+            </MessageThread>
           )}
         </div>
       </div>
@@ -482,15 +433,12 @@ export function ChatPage() {
                 />
                 {messages.length > 0 && (
                   <button
-                    onClick={() => {
-                      setMessages([]);
-                      threadIdRef.current = null;
-                    }}
-                    title="Clear conversation"
-                    aria-label="Clear conversation"
+                    onClick={newChat}
+                    title="New chat (keeps this one as a tab under Chat)"
+                    aria-label="New chat"
                     className="grid h-9 w-9 flex-none place-items-center rounded-full text-mut transition-colors hover:bg-ink/[0.05] hover:text-ink"
                   >
-                    <RotateCcw size={14} />
+                    <Archive size={14} />
                   </button>
                 )}
                 <motion.button

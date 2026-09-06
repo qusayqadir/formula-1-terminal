@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { AppShell } from "@/components/shell/AppShell";
 import { FiltersProvider } from "@/state/filters";
+import { ChatSessionsProvider } from "@/state/chatSessions";
 import { ThemeProvider } from "@/state/theme";
 import { HistoricalDashboard } from "@/features/dashboard/HistoricalDashboard";
 import { PredictionMarketsPage } from "@/features/prediction-markets/PredictionMarketsPage";
@@ -34,7 +35,9 @@ const router = createBrowserRouter([
   {
     element: (
       <FiltersProvider>
-        <AppShell />
+        <ChatSessionsProvider>
+          <AppShell />
+        </ChatSessionsProvider>
       </FiltersProvider>
     ),
     children: [
@@ -51,7 +54,6 @@ const router = createBrowserRouter([
         ),
       },
       { path: "/chat", element: <ChatPage /> },
-      { path: "/archived", element: stub("Archived", "Saved analytical views and shared dashboard snapshots.") },
       { path: "/live", element: stub("Live Dashboard", "Deferred — the platform is historical-only until a telemetry source is ingested.") },
       { path: "/docs/apis", element: <DocsApis /> },
       { path: "/docs/architecture", element: <DocsArchitecture /> },

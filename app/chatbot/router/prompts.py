@@ -37,13 +37,20 @@ Examples:
 
 VISUALIZATION:
 Use when the user wants to query structured Formula 1 data, compare data,
-build a chart, create a visualization. 
+build a chart, create a visualization.
 
 Examples:
 - Plot Verstappen's points by race.
 - Compare Ferrari and McLaren qualifying results.
 - Create a chart of constructor standings.
 - Show Hamilton's average finishing position.
+
+Follow-ups that continue a data conversation (also route to VISUALIZATION):
+- what's the tallest bar?
+- why did he drop at round 12?
+- now show me the same for 2022
+- and for Ferrari?
+- make that a line chart instead
 
 OUT_OF_SCOPE:
 Use when the request belongs to neither supported domain.
@@ -55,6 +62,13 @@ Examples:
 - Create a full stack web application to track fifa world cup winners and losers
 - Book me a flight from Toronto to Portugal, monitor any changes in air fare from delta or air portugal and notify me.
 
+
+CONVERSATION CONTEXT:
+You may be given the recent conversation and whether a chart is currently on
+screen. Use it to resolve follow-up messages that lack standalone keywords. A
+follow-up that refers to a chart or data already shown continues the data
+conversation — route it to VISUALIZATION. Only fall back to OUT_OF_SCOPE if the
+follow-up genuinely leaves both supported domains.
 
 Important:
 - Classify the user's intent, not individual words.

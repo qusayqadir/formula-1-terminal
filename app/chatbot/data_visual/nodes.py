@@ -123,8 +123,31 @@ def describe_schema(state: AgentState) -> AgentState:
 
 
 def generate_response(state: AgentState) -> AgentState:
-    
+
     structured_model = answer_model.with_structured_output(GenerateResponse)
+
+    recent = state.get("messages", [])[-6:]
+
+    transcript = "\n".join(
+        f"{'User' if isinstance(m, HumanMessage) else 'Assistant'}: {m.content}"
+        for m in recent
+    )
+    
+    prev_sql = state.get("generated_sql_query")
+    prev_chart = (state.get("chart_spec") or {}).get("title")
+
+    prior = ""
+    if transcript:
+        prior += f"\n\nRecent conversation:\n{transcript}"
+    if prev_chart:
+        prior += f"\n\nChart currently displayed to the user: {prev_chart}"
+    if prev_sql:
+        prior += (
+            "\n\nSQL behind that chart (if the new question refines it — adds/removes a "
+            "metric, changes a filter on the same subject — start from this and modify it, "
+            "preserving its existing filters unless the user changes them):\n"
+            f"{prev_sql}"
+        )
 
     agent_response = structured_model.invoke(
         [
@@ -132,8 +155,11 @@ def generate_response(state: AgentState) -> AgentState:
                 content=GENERATE_SQL_QUERY_PROMPT
             ),
             HumanMessage(
-                content=f"Context:\n{state["list_of_tables"]}\n and {state["table_schemas"]} \n\nQuestion:\n{state['user_query']}"
-                ),
+                content=(
+                    f"Context:\n{state['list_of_tables']}\n and {state['table_schemas']}"
+                    f"{prior}\n\nQuestion:\n{state['user_query']}"
+                )
+            ),
         ]
     )
     return {
@@ -223,18 +249,26 @@ def execute_query(state: AgentState) -> AgentState:
     }
 
 def generate_data_visual(state: AgentState) -> AgentState:
-    agent = answer_model.with_structured_output(ChartSpec)
-    
-    spec = agent.invoke([
+    data_agent = answer_model.with_structured_output(ChartSpec)
+
+    spec = data_agent.invoke([
         SystemMessage(content=GENERATE_DATA_VISUALIZATION_PROMPT),
-        HumanMessage(content=f"Rows (JSON):\n{state['data_visual_response']}\n\nSuggested chart type: {state.get('graph_of_choice')}"),
+        HumanMessage(content=(
+            f"User question:\n{state['user_query']}\n\n"
+            f"Rows (JSON):\n{state['data_visual_response']}\n\n"
+            f"Suggested chart type: {state.get('graph_of_choice')}"
+        )),
     ])
-    
+
+    spec_dict = spec.model_dump()
+
+    # chart_spec keeps the full structured output (incl. response); data_visual_answer
+    # surfaces just the natural-language answer for `respond`/final_answer.
     return {
-        "chart_spec": spec.model_dump()
+        "chart_spec": spec_dict,
+        "data_visual_answer": spec_dict.get("response", ""),
     }
 
-### pass on the data somewhere else? 
 def respond(state: AgentState) -> AgentState:
 
     data = state.get("data_visual_response", "")
@@ -247,6 +281,10 @@ def respond(state: AgentState) -> AgentState:
             )
         }
 
-    return {
-        "final_answer": f"Data: {data} Chart Spec: {state.get('chart_spec')} ",
-    }
+
+    answer = state.get("data_visual_answer") or ""
+    if not answer.strip():
+        spec = state.get("chart_spec") or {}
+        answer = spec.get("title") or "Here's a chart for your question."
+
+    return {"final_answer": answer}

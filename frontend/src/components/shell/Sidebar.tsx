@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
-  Archive,
   Boxes,
   CalendarDays,
+  ChevronRight,
   LayoutDashboard,
   MessageSquare,
   Newspaper,
   PanelLeftClose,
+  Plus,
   Radio,
   Rewind,
   Search,
@@ -18,6 +19,8 @@ import {
   X,
 } from "lucide-react";
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ai-elements/file-tree";
+import { useChatSessions } from "@/state/chatSessions";
+import type { ChatSession } from "@/features/chat/types";
 
 /** Strict-black rail. Navigation is a file-tree: folders group terminal /
  *  docs / support destinations; selection follows the router location.
@@ -90,6 +93,100 @@ function ProfilePill() {
         </span>
       </button>
     </div>
+  );
+}
+
+/** The "chat" folder is dynamic: one row per in-memory chat session (a tab),
+ *  plus a "+" to start a new one. Selection follows the active session (not a
+ *  route), since every session lives at /chat. */
+function ChatSessionsFolder({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const { sessions, activeId, newChat, selectSession, removeSession } = useChatSessions();
+  const location = useLocation();
+  const [open, setOpen] = useState(true);
+  const onChat = location.pathname === "/chat";
+
+  const label = (s: ChatSession) => {
+    const firstUser = s.messages.find((m) => m.role === "user");
+    return firstUser ? firstUser.content.slice(0, 28) : "New chat";
+  };
+
+  return (
+    <li role="treeitem" aria-expanded={open}>
+      {/* folder header: expand toggle + label + new-chat (+) */}
+      <div className="group relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-accent transition-colors duration-150 hover:bg-accent/[0.08]">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex min-w-0 flex-1 items-center gap-2.5"
+        >
+          <ChevronRight
+            size={13}
+            strokeWidth={2}
+            className={`flex-none text-accent/70 transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+          />
+          <MessageSquare size={15} strokeWidth={1.7} className="flex-none text-accent" />
+          <span className="truncate">chat</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            newChat();
+            onNavigate("/chat");
+          }}
+          title="New chat"
+          aria-label="New chat"
+          className="grid h-6 w-6 flex-none place-items-center rounded-md text-accent/80 transition-colors hover:bg-accent/[0.14] hover:text-accent"
+        >
+          <Plus size={14} strokeWidth={2} />
+        </button>
+      </div>
+
+      {open && (
+        <ul role="group" className="ml-[18px] mt-[3px] space-y-[3px] border-l border-stroke pl-2">
+          {/* newest chat on top — the provider keeps sessions in creation order */}
+          {[...sessions].reverse().map((s) => {
+            const selected = onChat && s.id === activeId;
+            return (
+              <li key={s.id} role="treeitem" aria-selected={selected}>
+                <div
+                  className={`group relative flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] tracking-[-0.01em] transition-colors duration-150 ${
+                    selected
+                      ? "bg-ink/[0.07] font-medium text-ink"
+                      : "text-sub hover:bg-ink/[0.04] hover:text-ink"
+                  }`}
+                >
+                  {selected && (
+                    <span aria-hidden className="absolute left-0 h-4 w-0.5 rounded-r bg-accent" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      selectSession(s.id);
+                      onNavigate("/chat");
+                    }}
+                    className="flex min-w-0 flex-1 items-center gap-2.5"
+                  >
+                    <MessageSquare size={15} strokeWidth={1.7} className="ml-1.5 flex-none" />
+                    <span className="truncate">{label(s)}</span>
+                  </button>
+                  {sessions.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => removeSession(s.id)}
+                      title="Delete chat"
+                      aria-label="Delete chat"
+                      className="grid h-6 w-6 flex-none place-items-center rounded-md text-mut opacity-0 transition-opacity hover:text-neg group-hover:opacity-100"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </li>
   );
 }
 
@@ -169,10 +266,7 @@ export function Sidebar(props: {
             <FileTreeFile name="News" path="/news" icon={Newspaper} />
             <FileTreeFile name="Calendar" path="/calendar" icon={CalendarDays} />
           </FileTreeFolder>
-          <FileTreeFolder name="chat" path="chat">
-            <FileTreeFile name="Chat" path="/chat" icon={MessageSquare} />
-            <FileTreeFile name="Archived" path="/archived" icon={Archive} />
-          </FileTreeFolder>
+          <ChatSessionsFolder onNavigate={handleSelect} />
           <FileTreeFolder name="docs" path="docs">
             <FileTreeFile name="Backend APIs" path="/docs/apis" icon={TerminalSquare} />
             <FileTreeFile name="Architecture" path="/docs/architecture" icon={Boxes} />
