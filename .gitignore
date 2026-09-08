@@ -5,6 +5,8 @@ __pycache__/
 .idea/
 .vscode/
 
+CLAUDE.md 
+
 fia_regulations_data/
 app/pipeline/ingest/data/.ingest_checkpoint.json
 app/pipeline/ingest/data/.rate_limit_log.json

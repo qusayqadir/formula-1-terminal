@@ -8,8 +8,7 @@
  *  with an apple-blue send button. */
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Archive, ArrowUp, X } from "lucide-react";
-import { useFilters } from "@/state/filters";
+import { Archive, ArrowUp, HelpCircle, X } from "lucide-react";
 import { useChatSessions } from "@/state/chatSessions";
 import { ThinkingDots } from "@/components/ui/ThinkingDots";
 import { SiriOrb } from "@/components/ui/SiriOrb";
@@ -91,7 +90,6 @@ async function streamChat(
 }
 
 export function ChatPage() {
-  const { filters } = useFilters();
   // The chat renders whichever session is active; sessions live in the shared
   // provider (multiple tabs, all in-memory — a refresh clears them). Ephemeral
   // UI state (draft, streaming indicator) stays local.
@@ -100,6 +98,7 @@ export function ChatPage() {
   const messages = activeSession.messages;
   const [draft, setDraft] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [liveThinking, setLiveThinking] = useState<ThinkingEvent[]>([]);
   const replyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -366,96 +365,169 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* floating composer — Skiper-style expanding pill */}
+      {/* floating composer — Skiper-style spring pop, collapsed pill or an
+          "Ask Anything"-shaped box: input on top, a slim control row below
+          (Help + New chat left, Send right) — no model picker, no extra
+          tool icons, just what this app actually needs. */}
       <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 flex justify-center px-4">
-        <motion.div
-          layout
-          initial={{ scale: 0, y: "100%" }}
-          animate={{ scale: 1, y: 0 }}
-          transition={{ type: "spring", bounce: 0.16, layout: { type: "spring", bounce: 0.16 } }}
-          style={{ borderRadius: 9999 }}
-          className="pointer-events-auto flex h-12 max-w-full items-center overflow-hidden border border-stroke bg-raised shadow-[var(--shadow-pop)]"
-        >
-          {!composerOpen ? (
-            <button
-              onClick={() => setComposerOpen(true)}
-              aria-label="Ask a question"
-              className="flex h-12 items-center gap-2 truncate whitespace-nowrap px-5 text-[13px] text-sub transition-colors hover:text-ink"
-            >
-              {/* fade the orb+label in only after the pill has shrunk, so no
-                  content is visible mid-collapse; the orb only exists while
-                  the composer is closed */}
-              <motion.span
-                key="orb"
-                initial={{ opacity: 0, scale: 0.6 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3, duration: 0.2 }}
-                className="flex items-center"
+        <div className="pointer-events-auto relative">
+          {/* help panel — springs open above the composer, same bounce as
+              the composer itself so it reads as one animation language */}
+          <AnimatePresence>
+            {helpOpen && (
+              <motion.div
+                key="help"
+                initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.92, y: 8 }}
+                transition={{ type: "spring", bounce: 0.2, duration: 0.35 }}
+                className="absolute bottom-full left-0 mb-3 w-[min(400px,calc(100vw-4rem))] rounded-2xl border border-ink/20 bg-raised/95 p-4 shadow-[var(--shadow-pop)] backdrop-blur-sm"
               >
-                <SiriOrb size={20} />
-              </motion.span>
-              <motion.span
-                key="label"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3, duration: 0.2 }}
+                <div className="flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-[13px] font-semibold text-ink">
+                    <HelpCircle size={14} className="text-accent" />
+                    Try asking
+                  </p>
+                  <button
+                    onClick={() => setHelpOpen(false)}
+                    aria-label="Close help"
+                    className="rounded-md p-1 text-mut transition-colors hover:bg-ink/10 hover:text-ink"
+                  >
+                    <X size={13} />
+                  </button>
+                </div>
+                <p className="mt-1 text-[11.5px] leading-relaxed text-sub">
+                  This chat answers from the historical results database — every classification, standing and
+                  circuit from 2011 to 2026. A few examples:
+                </p>
+                <div className="mt-3 flex flex-col gap-1.5">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setHelpOpen(false);
+                        send(s);
+                      }}
+                      className="rounded-lg border border-stroke bg-surface px-3 py-2 text-left text-[12px] leading-snug text-sub transition-colors hover:border-stroke-strong hover:text-ink"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <motion.div
+            layout
+            initial={{ scale: 0, y: "100%" }}
+            animate={{ scale: 1, y: 0 }}
+            // borderRadius goes through `style`, not `animate` — layout
+            // projection fakes the pill→box resize with scaleX/scaleY and
+            // only auto-corrects style-prop values against that scale, not
+            // animate keyframes. Doing it via animate left the corners
+            // warped/glitchy mid-morph.
+            style={{ borderRadius: composerOpen ? 20 : 9999 }}
+            transition={{ type: "spring", bounce: 0.16, layout: { type: "spring", bounce: 0.16 } }}
+            className="flex max-w-full flex-col overflow-hidden border border-stroke bg-raised shadow-[var(--shadow-pop)]"
+          >
+            {!composerOpen ? (
+              <button
+                onClick={() => setComposerOpen(true)}
+                aria-label="Ask a question"
+                className="flex h-12 items-center gap-2 truncate whitespace-nowrap px-5 text-[13px] text-sub transition-colors hover:text-ink"
               >
-                Ask AI!
-              </motion.span>
-            </button>
-          ) : (
-            <AnimatePresence>
+                {/* fade the orb+label in only after the pill has shrunk, so no
+                    content is visible mid-collapse; the orb only exists while
+                    the composer is closed */}
+                <motion.span
+                  key="orb"
+                  initial={{ opacity: 0, scale: 0.6 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.3, duration: 0.2 }}
+                  className="flex items-center"
+                >
+                  <SiriOrb size={20} />
+                </motion.span>
+                <motion.span
+                  key="label"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.3, duration: 0.2 }}
+                >
+                  Ask AI!
+                </motion.span>
+              </button>
+            ) : (
               <motion.div
                 key="field"
                 initial={{ opacity: 0, filter: "blur(4px)" }}
                 animate={{ opacity: 1, filter: "blur(0px)" }}
                 transition={{ delay: 0.15 }}
-                className="flex w-[min(640px,calc(100vw-4rem))] items-center gap-1 pl-1.5 pr-1.5"
+                className="flex w-[min(640px,calc(100vw-4rem))] flex-col gap-0.5 p-1.5"
               >
-                <button
-                  onClick={() => setComposerOpen(false)}
-                  aria-label="Collapse composer"
-                  className="grid h-9 w-9 flex-none place-items-center rounded-full text-mut transition-colors hover:text-ink"
-                >
-                  <X size={14} />
-                </button>
                 <input
                   ref={inputRef}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") send(draft);
-                    if (e.key === "Escape") setComposerOpen(false);
+                    if (e.key === "Escape") {
+                      setComposerOpen(false);
+                      setHelpOpen(false);
+                    }
                   }}
-                  placeholder={`Ask about the ${filters.year} season, a driver, a circuit…`}
+                  placeholder="Ask Anything"
                   aria-label="Chat message"
-                  className="h-full min-w-0 flex-1 bg-transparent px-1.5 text-[13px] text-ink outline-none placeholder:text-mut"
+                  className="w-full min-w-0 bg-transparent px-2.5 py-2 text-[13px] text-ink outline-none placeholder:text-mut"
                 />
-                {messages.length > 0 && (
+                <div className="flex items-center gap-1 px-0.5 pb-0.5">
                   <button
-                    onClick={newChat}
-                    title="New chat (keeps this one as a tab under Chat)"
-                    aria-label="New chat"
-                    className="grid h-9 w-9 flex-none place-items-center rounded-full text-mut transition-colors hover:bg-ink/[0.05] hover:text-ink"
+                    onClick={() => {
+                      setComposerOpen(false);
+                      setHelpOpen(false);
+                    }}
+                    aria-label="Collapse composer"
+                    className="grid h-8 w-8 flex-none place-items-center rounded-full text-mut transition-colors hover:bg-ink/[0.05] hover:text-ink"
                   >
-                    <Archive size={14} />
+                    <X size={14} />
                   </button>
-                )}
-                <motion.button
-                  initial={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
-                  transition={{ delay: 0.25 }}
-                  onClick={() => send(draft)}
-                  disabled={!draft.trim()}
-                  aria-label="Send message"
-                  className="grid h-9 w-9 flex-none place-items-center rounded-full bg-accent text-white transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-30"
-                >
-                  <ArrowUp size={15} strokeWidth={2.2} />
-                </motion.button>
+                  <button
+                    onClick={() => setHelpOpen((v) => !v)}
+                    aria-label="Help"
+                    aria-expanded={helpOpen}
+                    className={`grid h-8 w-8 flex-none place-items-center rounded-full transition-colors ${
+                      helpOpen ? "bg-accent/15 text-accent" : "text-mut hover:bg-ink/[0.05] hover:text-ink"
+                    }`}
+                  >
+                    <HelpCircle size={14} />
+                  </button>
+                  {messages.length > 0 && (
+                    <button
+                      onClick={newChat}
+                      title="New chat (keeps this one as a tab under Chat)"
+                      aria-label="New chat"
+                      className="grid h-8 w-8 flex-none place-items-center rounded-full text-mut transition-colors hover:bg-ink/[0.05] hover:text-ink"
+                    >
+                      <Archive size={14} />
+                    </button>
+                  )}
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.5, filter: "blur(4px)" }}
+                    animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                    transition={{ delay: 0.25 }}
+                    onClick={() => send(draft)}
+                    disabled={!draft.trim()}
+                    aria-label="Send message"
+                    className="ml-auto grid h-8 w-8 flex-none place-items-center rounded-full bg-accent text-white transition-opacity hover:opacity-90 active:scale-95 disabled:opacity-30"
+                  >
+                    <ArrowUp size={15} strokeWidth={2.2} />
+                  </motion.button>
+                </div>
               </motion.div>
-            </AnimatePresence>
-          )}
-        </motion.div>
+            )}
+          </motion.div>
+        </div>
       </div>
     </div>
   );

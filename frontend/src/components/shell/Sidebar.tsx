@@ -1,97 +1,169 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Boxes,
   CalendarDays,
   ChevronRight,
+  CornerDownLeft,
   LayoutDashboard,
   MessageSquare,
-  Newspaper,
   PanelLeftClose,
   Plus,
   Radio,
   Rewind,
   Search,
   Sparkles,
-  TerminalSquare,
   TrendingUp,
   UserRound,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { FileTree, FileTreeFile, FileTreeFolder } from "@/components/ai-elements/file-tree";
 import { useChatSessions } from "@/state/chatSessions";
 import type { ChatSession } from "@/features/chat/types";
 
 /** Strict-black rail. Navigation is a file-tree: folders group terminal /
- *  docs / support destinations; selection follows the router location.
- *  Identity accent stays reserved for the selected tick. */
+ *  docs destinations; selection follows the router location. Identity accent
+ *  stays reserved for the selected tick. */
 
-/** Placeholder profile — swap for real account data once auth exists. */
-const PROFILE = {
-  name: "Qusay Qadir",
-  email: "qusayqadir78@gmail.com",
-  team: "McLaren",
-  driver: "Lando Norris",
-  circuit: "Suzuka",
-  since: "2026",
-} as const;
+/** Every searchable destination. Keywords broaden matches beyond the label
+ *  (e.g. "graph" → Architecture, "sql" → Chat). */
+type SearchTarget = {
+  label: string;
+  path: string;
+  section: string;
+  icon: LucideIcon;
+  keywords?: string;
+};
+const SEARCH_TARGETS: SearchTarget[] = [
+  { label: "Dashboard", path: "/", section: "Terminal", icon: LayoutDashboard, keywords: "historical home overview" },
+  { label: "Live Dashboard", path: "/live", section: "Terminal", icon: Radio, keywords: "telemetry realtime sim" },
+  { label: "Race Replay", path: "/race-replay", section: "Terminal", icon: Rewind, keywords: "playback" },
+  { label: "Prediction Markets", path: "/prediction-markets", section: "Terminal", icon: TrendingUp, keywords: "odds betting" },
+  { label: "Calendar", path: "/calendar", section: "Terminal", icon: CalendarDays, keywords: "schedule circuits track" },
+  { label: "Chat", path: "/chat", section: "Chat", icon: MessageSquare, keywords: "ask question sql rag regulation" },
+  { label: "Architecture", path: "/docs/architecture", section: "Docs", icon: Boxes, keywords: "system design aws diagram graph infrastructure" },
+  { label: "Creator", path: "/creator", section: "About", icon: UserRound, keywords: "author bio about" },
+];
 
-/** Profile trigger + upward glass popover. Own component: the nav tree is
- *  rendered twice (desktop rail + mobile drawer), so each copy needs its own
- *  open state / outside-click ref. */
-function ProfilePill() {
+/** Search box + glass results popover. Own component: the nav tree is rendered
+ *  twice (desktop rail + mobile drawer), so each copy needs its own open state,
+ *  query, and outside-click ref. "/" focuses the input from anywhere. */
+function SearchBox({ onNavigate }: { onNavigate: (path: string) => void }) {
+  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return SEARCH_TARGETS;
+    return SEARCH_TARGETS.filter((t) =>
+      `${t.label} ${t.section} ${t.keywords ?? ""}`.toLowerCase().includes(q),
+    );
+  }, [query]);
+
+  useEffect(() => setActive(0), [query]);
+
+  // "/" focuses search (unless typing in another field); outside-click closes.
   useEffect(() => {
-    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const el = e.target as HTMLElement;
+      if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+    };
     const onDown = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
+    document.addEventListener("keydown", onKey);
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, [open]);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("mousedown", onDown);
+    };
+  }, []);
+
+  const go = (path: string) => {
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.blur();
+    onNavigate(path);
+  };
+
+  const onInputKey = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((a) => Math.min(a + 1, results.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((a) => Math.max(a - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (results[active]) go(results[active].path);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      inputRef.current?.blur();
+    }
+  };
 
   return (
-    <div ref={ref} className="relative min-w-0">
+    <div ref={ref} className="relative mt-5 flex-none">
+      <div className="flex h-9 items-center gap-2.5 rounded-lg border border-stroke px-2.5 text-[13px] transition-colors focus-within:border-stroke-strong">
+        <Search size={15} strokeWidth={1.7} className="flex-none text-sub" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onInputKey}
+          placeholder="Search"
+          className="min-w-0 flex-1 bg-transparent text-sub placeholder:text-mut focus:text-ink focus:outline-none"
+        />
+        {!query && (
+          <kbd className="grid h-6 w-6 flex-none place-items-center rounded-md border border-stroke font-mono text-[11px] text-mut">
+            /
+          </kbd>
+        )}
+      </div>
+
       {open && (
-        <div className="absolute bottom-full left-0 z-40 mb-2 w-56 rounded-md border border-ink/20 bg-raised/75 p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] backdrop-blur-sm">
-          <p className="font-mono text-[10px] uppercase tracking-wider text-sub">Profile</p>
-          <dl className="mt-2 space-y-1.5 font-mono text-[11px] tabular-nums">
-            {[
-              ["Name", PROFILE.name],
-              ["Email", PROFILE.email],
-              ["Fav Team", PROFILE.team],
-              ["Fav Driver", PROFILE.driver],
-              ["Fav Circuit", PROFILE.circuit],
-              ["Member Since", PROFILE.since],
-            ].map(([label, value]) => (
-              <div key={label} className="flex items-baseline justify-between gap-3">
-                <dt className="flex-none text-mut">{label}</dt>
-                <dd className="truncate text-right text-ink">{value}</dd>
-              </div>
-            ))}
-          </dl>
+        <div className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-md border border-ink/20 bg-raised/75 py-1 shadow-[0_1px_2px_rgba(0,0,0,0.1)] backdrop-blur-sm">
+          {results.length === 0 ? (
+            <p className="px-3 py-2 font-mono text-[11px] text-mut">No matches</p>
+          ) : (
+            <ul role="listbox">
+              {results.map((t, i) => {
+                const Icon = t.icon;
+                return (
+                  <li key={t.path} role="option" aria-selected={i === active}>
+                    <button
+                      type="button"
+                      onMouseEnter={() => setActive(i)}
+                      onClick={() => go(t.path)}
+                      className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[13px] transition-colors ${
+                        i === active ? "bg-ink/[0.07] text-ink" : "text-sub hover:bg-ink/[0.04]"
+                      }`}
+                    >
+                      <Icon size={14} strokeWidth={1.7} className="flex-none text-mut" />
+                      <span className="min-w-0 flex-1 truncate">{t.label}</span>
+                      <span className="flex-none font-mono text-[9.5px] uppercase tracking-wider text-mut">
+                        {t.section}
+                      </span>
+                      {i === active && (
+                        <CornerDownLeft size={12} className="flex-none text-mut" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Profile"
-        aria-expanded={open}
-        title="Profile"
-        className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-stroke px-2 py-1.5 text-left transition-colors hover:bg-ink/[0.06]"
-      >
-        <span className="grid h-6 w-6 flex-none place-items-center rounded-md bg-ink/[0.08] text-mut">
-          <UserRound size={13} strokeWidth={1.7} />
-        </span>
-        <span className="min-w-0">
-          <span className="block truncate text-[11.5px] font-medium leading-tight text-ink">
-            {PROFILE.name}
-          </span>
-          <span className="block truncate font-mono text-[9.5px] leading-tight text-mut">
-            {PROFILE.email}
-          </span>
-        </span>
-      </button>
     </div>
   );
 }
@@ -225,18 +297,8 @@ export function Sidebar(props: {
         </button>
       </div>
 
-      {/* search stub */}
-      <button
-        type="button"
-        title="Search — coming soon"
-        className="mt-5 flex h-9 flex-none cursor-default items-center gap-2.5 rounded-lg px-2.5 text-[13px] text-sub transition-colors hover:bg-ink/[0.04] hover:text-ink"
-      >
-        <Search size={15} strokeWidth={1.7} className="flex-none" />
-        Search
-        <kbd className="ml-auto grid h-6 w-6 place-items-center rounded-md border border-stroke font-mono text-[11px] text-mut">
-          /
-        </kbd>
-      </button>
+      {/* global page search */}
+      <SearchBox onNavigate={handleSelect} />
 
       {/* file-tree navigation */}
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto">
@@ -252,8 +314,9 @@ export function Sidebar(props: {
               path="/live"
               icon={Radio}
               badge={
-                <span className="rounded border border-stroke px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider text-mut">
-                  soon
+                <span className="flex items-center gap-1 rounded border border-neg/40 bg-neg/10 px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-wider text-neg">
+                  <span aria-hidden className="h-1 w-1 animate-pulse rounded-full bg-neg" />
+                  sim
                 </span>
               }
             />
@@ -263,15 +326,11 @@ export function Sidebar(props: {
               path="/prediction-markets"
               icon={TrendingUp}
             />
-            <FileTreeFile name="News" path="/news" icon={Newspaper} />
             <FileTreeFile name="Calendar" path="/calendar" icon={CalendarDays} />
           </FileTreeFolder>
           <ChatSessionsFolder onNavigate={handleSelect} />
           <FileTreeFolder name="docs" path="docs">
-            <FileTreeFile name="Backend APIs" path="/docs/apis" icon={TerminalSquare} />
             <FileTreeFile name="Architecture" path="/docs/architecture" icon={Boxes} />
-          </FileTreeFolder>
-          <FileTreeFolder name="support" path="support">
             <FileTreeFile name="Creator" path="/creator" icon={UserRound} />
           </FileTreeFolder>
         </FileTree>
@@ -304,9 +363,8 @@ export function Sidebar(props: {
         </div>
       )}
 
-      {/* bottom bar — profile (left) opposite the collapse control (right) */}
-      <div className="mt-3 flex flex-none items-center justify-between gap-2">
-        <ProfilePill />
+      {/* bottom bar — collapse control */}
+      <div className="mt-3 flex flex-none items-center justify-end">
         <button
           onClick={props.onCollapse}
           aria-label="Collapse sidebar"

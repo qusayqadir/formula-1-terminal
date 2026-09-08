@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.chatbot.graph import terminal_chat
+from app.chatbot.data_visual.nodes import refresh_schema_cache
 
 router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 # limiter = Limiter(key_func=get_remote_address)
@@ -235,3 +236,12 @@ async def chat(request: Request, body: ChatRequest) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/refresh-schema")
+def refresh_schema() -> dict:
+    """Drop the data-viz subgraph's cached bronze table list + schema strings so the
+    next question re-introspects Postgres. Call after a schema migration / re-ingest;
+    the cache otherwise lives for the server-process lifetime."""
+    refresh_schema_cache()
+    return {"status": "schema cache cleared"}

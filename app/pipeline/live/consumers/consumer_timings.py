@@ -1,10 +1,9 @@
-# handles the lap segment data and the driver interval data 
-#  assuming lap segment data comes when its complete 
-# interval data come at 3.7Hz? 
-# position data comes in every 4 sec 
+# handles the lap segment data and the driver interval data
+#  assuming lap segment data comes when its complete
+# interval data come at 3.7Hz?
+# position data comes in every 4 sec
 import json
 import logging
-import os
 
 import psycopg
 
@@ -17,14 +16,14 @@ logger = logging.getLogger(__name__)
 _conn: "psycopg.Connection | None" = None
 
 
-def _get_conn() -> psycopg.Connection:
+def get_conn() -> psycopg.Connection:
     global _conn
     if _conn is None or _conn.closed:
         _conn = get_connection()
     return _conn
 
 
-def _reset_conn() -> None:
+def reset_conn() -> None:
     """Drop a poisoned connection so the next call reconnects cleanly."""
     global _conn
     if _conn is not None and not _conn.closed:
@@ -34,9 +33,9 @@ def _reset_conn() -> None:
             pass
     _conn = None
 
-# get the +1 data, if getting lapped display to user 
-def _num(value):
-    
+# get the +1 data, if getting lapped display to user
+def num(value):
+
     if value is None:
         return None
     try:
@@ -45,13 +44,13 @@ def _num(value):
         return None
 
 
-_SESSION_SQL = """
+SESSION_SQL = """
     INSERT INTO bronze.live_session (session_key, meeting_key)
     VALUES (%(session_key)s, %(meeting_key)s)
     ON CONFLICT (session_key) DO NOTHING
 """
 
-_LAP_SQL = """
+LAP_SQL = """
     INSERT INTO bronze.live_lap (
         session_key, meeting_key, driver_number, lap_number, _key, _id,
         date_start, lap_duration,
@@ -83,7 +82,7 @@ _LAP_SQL = """
         ingested_at       = NOW()
 """
 
-_INTERVAL_SQL = """
+INTERVAL_SQL = """
     INSERT INTO bronze.live_interval (
         session_key, meeting_key, driver_number, date, gap_to_leader, "interval"
     ) VALUES (
@@ -96,7 +95,7 @@ _INTERVAL_SQL = """
         ingested_at   = NOW()
 """
 
-_POSITION_SQL = """
+POSITION_SQL = """
     INSERT INTO bronze.live_position (
         session_key, meeting_key, driver_number, date, position
     ) VALUES (
@@ -105,15 +104,15 @@ _POSITION_SQL = """
     ON CONFLICT (session_key, driver_number, date) DO NOTHING
 """
 
-def _ensure_session(conn: psycopg.Connection, body: dict) -> None:
-    conn.execute(_SESSION_SQL, {
+def ensure_session(conn: psycopg.Connection, body: dict) -> None:
+    conn.execute(SESSION_SQL, {
         "session_key": body["session_key"],
         "meeting_key": body["meeting_key"],
     })
 
 
-def _upsert_lap(conn: psycopg.Connection, body: dict) -> None:
-    conn.execute(_LAP_SQL, {
+def upsert_lap(conn: psycopg.Connection, body: dict) -> None:
+    conn.execute(LAP_SQL, {
         "session_key": body["session_key"],
         "meeting_key": body["meeting_key"],
         "driver_number": body["driver_number"],
@@ -121,10 +120,10 @@ def _upsert_lap(conn: psycopg.Connection, body: dict) -> None:
         "_key": body.get("_key"),
         "_id": body.get("_id"),
         "date_start": body.get("date_start"),
-        "lap_duration": _num(body.get("lap_duration")),
-        "duration_sector_1": _num(body.get("duration_sector_1")),
-        "duration_sector_2": _num(body.get("duration_sector_2")),
-        "duration_sector_3": _num(body.get("duration_sector_3")),
+        "lap_duration": num(body.get("lap_duration")),
+        "duration_sector_1": num(body.get("duration_sector_1")),
+        "duration_sector_2": num(body.get("duration_sector_2")),
+        "duration_sector_3": num(body.get("duration_sector_3")),
         "i1_speed": body.get("i1_speed"),
         "i2_speed": body.get("i2_speed"),
         "st_speed": body.get("st_speed"),
@@ -136,18 +135,18 @@ def _upsert_lap(conn: psycopg.Connection, body: dict) -> None:
     })
 
 
-def _upsert_interval(conn: psycopg.Connection, body: dict) -> None:
-    conn.execute(_INTERVAL_SQL, {
+def upsert_interval(conn: psycopg.Connection, body: dict) -> None:
+    conn.execute(INTERVAL_SQL, {
         "session_key": body["session_key"],
         "meeting_key": body["meeting_key"],
         "driver_number": body["driver_number"],
         "date": body.get("date") or body.get("date_start"),
-        "gap_to_leader": _num(body.get("gap_to_leader")),
-        "interval": _num(body.get("interval")),
+        "gap_to_leader": num(body.get("gap_to_leader")),
+        "interval": num(body.get("interval")),
     })
 
-def _upsert_position(conn: psycopg.Connection, body: dict) -> None:
-    conn.execute(_POSITION_SQL, {
+def upsert_position(conn: psycopg.Connection, body: dict) -> None:
+    conn.execute(POSITION_SQL, {
         "session_key": body["session_key"],
         "meeting_key": body["meeting_key"],
         "driver_number": body["driver_number"],
@@ -155,33 +154,33 @@ def _upsert_position(conn: psycopg.Connection, body: dict) -> None:
         "position": body["position"],
     })
 
-def _process(conn: psycopg.Connection, body: dict) -> None:
-    _ensure_session(conn, body)
+def process(conn: psycopg.Connection, body: dict) -> None:
+    ensure_session(conn, body)
     if "lap_duration" in body:
-        _upsert_lap(conn, body)
+        upsert_lap(conn, body)
     elif "position" in body:
-        _upsert_position(conn, body)
+        upsert_position(conn, body)
     else:
-        _upsert_interval(conn, body)
+        upsert_interval(conn, body)
 
 
 def handler(event, context=None):
-    conn = _get_conn()
+    conn = get_conn()
     failures = []
 
     for record in event.get("Records", []):
         message_id = record.get("messageId")
         try:
             body = json.loads(record["body"])
-            _process(conn, body)
+            process(conn, body)
             conn.commit()
         except Exception:
             logger.exception("timings record failed: %s", message_id)
             try:
                 conn.rollback()
             except Exception:
-                _reset_conn()
-                conn = _get_conn()
+                reset_conn()
+                conn = get_conn()
             if message_id:
                 failures.append({"itemIdentifier": message_id})
 

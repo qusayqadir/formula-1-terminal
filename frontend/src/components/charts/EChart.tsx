@@ -55,6 +55,13 @@ export function EChart({ option, events, className, chartKey, onChartReady }: Pr
   eventsRef.current = events;
   const onReadyRef = useRef<Props["onChartReady"]>(onChartReady);
   onReadyRef.current = onChartReady;
+  // live-updating widgets recompute `option` on every data tick; applying
+  // that mid-hover resets the tooltip (and can flicker/dismiss it) right
+  // as someone's trying to read it. Pausing while the pointer is over the
+  // chart and flushing the latest option on leave keeps hover state alive
+  // without holding stale data any longer than the hover itself lasts.
+  const hoveringRef = useRef(false);
+  const pendingOptionRef = useRef<EChartsOption | null>(null);
 
   useEffect(() => {
     const node = nodeRef.current;
@@ -72,17 +79,39 @@ export function EChart({ option, events, className, chartKey, onChartReady }: Pr
       proxyHandlers.push([name, handler]);
     };
     for (const name of Object.keys(eventsRef.current ?? {})) bind(name);
+
+    const onEnter = () => {
+      hoveringRef.current = true;
+    };
+    const onLeave = () => {
+      hoveringRef.current = false;
+      if (pendingOptionRef.current) {
+        chart.setOption({ aria: DITHER_ARIA, ...pendingOptionRef.current }, { notMerge: true });
+        pendingOptionRef.current = null;
+      }
+    };
+    node.addEventListener("mouseenter", onEnter);
+    node.addEventListener("mouseleave", onLeave);
+
     return () => {
       observer.disconnect();
+      node.removeEventListener("mouseenter", onEnter);
+      node.removeEventListener("mouseleave", onLeave);
       for (const [name, handler] of proxyHandlers) chart.off(name, handler);
       chart.dispose();
       chartRef.current = null;
+      hoveringRef.current = false;
+      pendingOptionRef.current = null;
       onReadyRef.current?.(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartKey]);
 
   useEffect(() => {
+    if (hoveringRef.current) {
+      pendingOptionRef.current = option;
+      return;
+    }
     chartRef.current?.setOption({ aria: DITHER_ARIA, ...option }, { notMerge: true });
   }, [option, chartKey]);
 

@@ -15,6 +15,12 @@ interface Props {
   empty?: boolean;
   emptyText?: string;
   expandable?: boolean;
+  /** Fires whenever the fullscreen modal opens/closes. For widgets that own
+   *  an imperative resource keyed to their container (e.g. a Google Maps
+   *  instance) — the modal is a SECOND mount of `children`, not a resize of
+   *  the compact one, so a widget that needs exactly one live instance can
+   *  use this to tear its compact copy down while the modal is open. */
+  onExpandedChange?: (expanded: boolean) => void;
   className?: string;
   bodyClassName?: string;
   /** Plain node, or a render function that receives whether the card is
@@ -28,6 +34,11 @@ interface Props {
  *  controls, loading/error/empty states, optional fullscreen expansion. */
 export function AnalyticsCard(props: Props) {
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    props.onExpandedChange?.(expanded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded]);
 
   useEffect(() => {
     if (!expanded) return;

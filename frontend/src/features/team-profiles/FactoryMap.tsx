@@ -1,4 +1,4 @@
-import { APIProvider, Map, Marker } from "@vis.gl/react-google-maps";
+import { Map, Marker } from "@vis.gl/react-google-maps";
 import { AnalyticsCard } from "@/components/ui/AnalyticsCard";
 
 export interface FactoryLocation {
@@ -27,19 +27,17 @@ export function FactoryMap(props: { factory?: FactoryLocation; className?: strin
       bodyClassName="p-0"
     >
       {props.factory && API_KEY && (
-        <APIProvider apiKey={API_KEY}>
-          <Map
-            defaultCenter={{ lat: props.factory.lat, lng: props.factory.lng }}
-            defaultZoom={13}
-            gestureHandling="cooperative"
-            disableDefaultUI={false}
-            zoomControl
-            mapId="team-factory-map"
-            style={{ width: "100%", height: "100%" }}
-          >
-            <Marker position={{ lat: props.factory.lat, lng: props.factory.lng }} title={props.factory.label} />
-          </Map>
-        </APIProvider>
+        <Map
+          defaultCenter={{ lat: props.factory.lat, lng: props.factory.lng }}
+          defaultZoom={13}
+          gestureHandling="cooperative"
+          disableDefaultUI={false}
+          zoomControl
+          mapId="team-factory-map"
+          style={{ width: "100%", height: "100%" }}
+        >
+          <Marker position={{ lat: props.factory.lat, lng: props.factory.lng }} title={props.factory.label} />
+        </Map>
       )}
     </AnalyticsCard>
   );

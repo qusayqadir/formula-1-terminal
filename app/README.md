@@ -3,10 +3,10 @@
   - [x] Add multi-turn chatbot conversation support
   - [ ] build evals for regulation docs 
     - [ ] decide on a threshold accuracy and lifecycle add FIA regs for prev seasons 
-  - [ ] imporve agent response latency ( imporve ux while waiting for response ? ) 
-  - [ ] take generated sql data and build image to server via data vis graph
+  - [x] imporve agent response latency ( imporve ux while waiting for response ? ) 
+  - [x] take generated sql data and build image to server via data vis graph
   - [ ] add keyword search to acoomplish hybrid search 
-  - [ ] store chat sessions (very low priority) 
+  - [x] store chat sessions (very low priority) 
 
 - [ ] **historical dashboard** 
   - [x] Ingest qualifying results
@@ -41,3 +41,19 @@
   - [ ] config elastic ip for ec2 instance and add it to accepted network ips for atlas
   - [x] config rds (db.t4.micro) for data platform + network inbound rules from only my comptuer for now - change it to elastic ec2 ip once code is pushed there 
   - [x] take snapshot of running db instance to stop getting billed for comptue ( $0.095/GB - for snapshot charge) 
+
+- [ ] **for today** 
+  - [ ] build out the data visualization agent to serve the data image over the chat interface, update the AgentState to have mutli turn follow up questions ( forget the image, just need the data ) 
+  - [ ] build out the frontend placeholders for the live telemetry (always showing locatoin, live leaderboard, driver lap data, weather, session events, and then race control live update ) then focus on MAX 2 driver select, show the comapriosn between the drivers for the break and gas thorttle percentage over the lap when selected, and its drawn out in real time with overlay and then in the future something like aws bedrock or sagemaker to take that live data and then predict what lap will be the next striking distance.
+  - [ ] after building out the bento box live telemetry holdings, aws infra. need to have the ec2 instance, the databse running, and the s3 bucket, and then config the github pipeline to be sending update to those. no config for sqs, fargate, ecr, and subnet. 
+  - [ ] also need to ingest in more fia regulation docs and push to mongodb. 
+  - [ ] build a workflow to answer questions just about the data between the drivers, create a new workflow instead of just having the data visualizatoin agent, the data responder ? ?  ?
+
+```markdown
+- [ ] Cloud - infra setup and config 
+- [ ] Live Telemetry Frontend 
+- [ ] Live Telemetry Backend. 
+- [ ] Chatbot Backend (Langgraph build out and func ) 
+- [ ] generate a video about the functionality so far ( have the live telemetry just be mock data for now like 2 mins of a race) and then apply to wealthsimple and then also apply to Formula E for Metrics & Observability  
+```
+

@@ -6,3 +6,9 @@ httpx>=0.27             # OpenF1 token endpoint
 psycopg[binary]>=3.2    # bronze.live_focus_selection reads
 aiobotocore==3.9.0      # async SQS client (dispatcher)
 python-dotenv>=1.0      # load_dotenv() — no-op in-container, env comes from task def
+
+# NOTE: mock_message_producer.py (the replay stand-in) needs `boto3`, but it is
+# NOT part of this Fargate image (the Dockerfile only copies stream_worker.py).
+# Don't add boto3 here — aiobotocore==3.9.0 pins botocore<1.43.57 and a loose
+# boto3 pulls a newer botocore pip can't reconcile. boto3 is preinstalled in the
+# Lambda runtime; for local runs `pip install boto3` in a separate env.

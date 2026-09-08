@@ -1,3 +1,4 @@
+
 from typing import Literal
 
 from app.chatbot.state import AgentState
@@ -8,9 +9,10 @@ from app.chatbot.data_visual.prompt import (
     GENERATE_DATA_VISUALIZATION_PROMPT 
 )
 from app.chatbot.core.models import (
-    answer_model, 
+    answer_model,
     analysis_model
 )
+from functools import lru_cache
 from langchain_core.messages import (
     HumanMessage, 
     SystemMessage
@@ -27,7 +29,7 @@ from core.database import (
     get_connection
 )
 
-
+@lru_cache(maxsize=1)
 def list_sql_tables() -> str:
     conn = get_connection()
     try:
@@ -45,6 +47,7 @@ def list_sql_tables() -> str:
     finally:
         conn.close()
 
+@lru_cache(maxsize=1)
 def sql_table_schema(table_names: str) -> str:
 
     conn = get_connection()
@@ -98,6 +101,13 @@ def sql_table_schema(table_names: str) -> str:
         return "\n\n".join(results)
     finally:
         conn.close()
+
+#will use this as admin endpoint 
+def refresh_schema_cache() -> None:
+
+    list_sql_tables.cache_clear()
+    sql_table_schema.cache_clear()
+
 
 def sql_db_query(query: str) -> str:
     import json

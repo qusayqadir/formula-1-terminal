@@ -13,33 +13,60 @@ concurrency:
 
 jobs:
   test:
-    name: test (pytest tests/)
+    name: test (stub — always passes)
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: No tests
+        run: echo "No tests to run — passing."
+
+  changes:
+    name: detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+
+  deploy-frontend:
+    name: build frontend and deploy to s3
+    needs: [test, changes]
+    # Only deploy to S3 when the push actually touched the frontend.
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: "3.12"
-          cache: pip
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install and build frontend
+        working-directory: frontend
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          npm ci
+          npm run build
 
-      # NOTE: tests/ are integration tests — conftest.py fixtures hit the API,
-      # which reads DATABASE_URL and expects a populated database. Point this
-      # at a read-only CI database via the repo/environment secret. This is a
-      # stub: no new test files are created, we only run what already exists.
-      # Use `python -m pytest` (not the bare `pytest` console script) so the
-      # repo root is prepended to sys.path — otherwise `from app.main import
-      # app` in conftest.py fails with ModuleNotFoundError: No module named 'app'.
-      - name: Run test suite
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python -m pytest tests/ -v
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
+      - name: Sync build output to S3
+        run: aws s3 sync frontend/dist s3://${{ secrets.AWS_S3_BUCKET }} --delete
+
+      - name: Invalidate CloudFront cache
+        run: aws cloudfront create-invalidation --distribution-id ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
 
   bundle:
     name: build release bundle

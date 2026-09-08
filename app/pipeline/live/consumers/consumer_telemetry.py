@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 _conn: "psycopg.Connection | None" = None
 
 
-def _get_conn() -> psycopg.Connection:
+def get_conn() -> psycopg.Connection:
     global _conn
     if _conn is None or _conn.closed:
         _conn = get_connection()
     return _conn
 
 
-def _reset_conn() -> None:
+def reset_conn() -> None:
     """Drop a poisoned connection so the next call reconnects cleanly."""
     global _conn
     if _conn is not None and not _conn.closed:
@@ -34,14 +34,14 @@ def _reset_conn() -> None:
     _conn = None
 
 
-_SESSION_SQL = """
+SESSION_SQL = """
     INSERT INTO bronze.live_session (session_key, meeting_key)
     VALUES (%(session_key)s, %(meeting_key)s)
     ON CONFLICT (session_key) DO NOTHING
 """
 
 # complete snapshot per message; a conflict is just an at-least-once redelivery -> DO NOTHING
-_CAR_DATA_SQL = """
+CAR_DATA_SQL = """
     INSERT INTO bronze.live_car_data (
         session_key, meeting_key, driver_number, date,
         speed, rpm, n_gear, throttle, brake, drs
@@ -52,7 +52,7 @@ _CAR_DATA_SQL = """
     ON CONFLICT (session_key, driver_number, date) DO NOTHING
 """
 
-_LOCATION_SQL = """
+LOCATION_SQL = """
     INSERT INTO bronze.live_location (
         session_key, meeting_key, driver_number, date, x, y, z
     ) VALUES (
@@ -63,15 +63,15 @@ _LOCATION_SQL = """
 """
 
 
-def _ensure_session(conn: psycopg.Connection, body: dict) -> None:
-    conn.execute(_SESSION_SQL, {
+def ensure_session(conn: psycopg.Connection, body: dict) -> None:
+    conn.execute(SESSION_SQL, {
         "session_key": body["session_key"],
         "meeting_key": body["meeting_key"],
     })
 
 
-def _upsert_car_data(conn: psycopg.Connection, body: dict) -> None:
-    conn.execute(_CAR_DATA_SQL, {
+def upsert_car_data(conn: psycopg.Connection, body: dict) -> None:
+    conn.execute(CAR_DATA_SQL, {
         "session_key": body["session_key"],
         "meeting_key": body["meeting_key"],
         "driver_number": body["driver_number"],
@@ -85,8 +85,8 @@ def _upsert_car_data(conn: psycopg.Connection, body: dict) -> None:
     })
 
 
-def _upsert_location(conn: psycopg.Connection, body: dict) -> None:
-    conn.execute(_LOCATION_SQL, {
+def upsert_location(conn: psycopg.Connection, body: dict) -> None:
+    conn.execute(LOCATION_SQL, {
         "session_key": body["session_key"],
         "meeting_key": body["meeting_key"],
         "driver_number": body["driver_number"],
@@ -97,31 +97,31 @@ def _upsert_location(conn: psycopg.Connection, body: dict) -> None:
     })
 
 
-def _process(conn: psycopg.Connection, body: dict) -> None:
-    _ensure_session(conn, body)          # both tables FK bronze.live_session
+def process(conn: psycopg.Connection, body: dict) -> None:
+    ensure_session(conn, body)           # both tables FK bronze.live_session
     if "rpm" in body:                    # only car_data carries rpm
-        _upsert_car_data(conn, body)
+        upsert_car_data(conn, body)
     else:
-        _upsert_location(conn, body)
+        upsert_location(conn, body)
 
 
 def handler(event, context=None):
-    conn = _get_conn()
+    conn = get_conn()
     failures = []
 
     for record in event.get("Records", []):
         message_id = record.get("messageId")
         try:
             body = json.loads(record["body"])
-            _process(conn, body)
+            process(conn, body)
             conn.commit()
         except Exception:
             logger.exception("telemetry record failed: %s", message_id)
             try:
                 conn.rollback()
             except Exception:
-                _reset_conn()
-                conn = _get_conn()
+                reset_conn()
+                conn = get_conn()
             if message_id:
                 failures.append({"itemIdentifier": message_id})
 
