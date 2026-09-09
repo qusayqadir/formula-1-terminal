@@ -17,10 +17,10 @@ import type { ChatChartSpec, ChatChartRow } from "@/features/chat/ChatChart";
 import type { ChartPayload, ThinkingEvent } from "@/features/chat/types";
 
 const SUGGESTIONS = [
-  "Who won the 2021 drivers' championship, and by how many points?",
-  "Which team had the most mechanical DNFs in 2016?",
-  "Compare Norris and Verstappen over the 2025 season.",
+  "Compare Norris and Verstappen points progression over the 2025 season round by round",
+  "What was the 2026 Power Unit Cost Cap?",
   "At which circuits does pole convert to a win least often?",
+  "Build a stacked bar graph to show me the point contribution by the Ferrari Drivers for the team round by round in the 2023 season"
 ];
 
 interface RawThinkingEvent {
@@ -301,11 +301,12 @@ export function ChatPage() {
             <div className="flex flex-col items-center pt-16 text-center">
               <p className="eyebrow">Ask the database</p>
               <h2 className="mt-2 max-w-md text-xl font-semibold tracking-tight text-ink">
-                Every classification, standing and circuit from 2011 to 2026.
+                Ask Regulation & Data Visualization Question 
               </h2>
               <p className="mt-2 max-w-sm text-xs leading-relaxed text-sub">
-                Answers will be grounded in the ingested results database once the chat
-                backend is wired up. Try one of these to see the flow:
+              Regulation Questions can answer (General, Sporting, Financial, Operating) referenced by the FIA ONLY 2026, Data Visualization creates custom data charts for the user based off any racing data from 2011 to 2026
+                <br></br>
+                Try one of these: 
               </p>
               <div className="mt-6 grid w-full max-w-xl gap-2 sm:grid-cols-2">
                 {SUGGESTIONS.map((s) => (

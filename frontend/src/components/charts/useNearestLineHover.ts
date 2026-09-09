@@ -102,9 +102,18 @@ export function useNearestLineHover(chart: echarts.ECharts | null, thresholdPx =
     chart.getZr().on("mousemove", onMouseMove);
     chart.getZr().on("mouseout", clearHover);
     return () => {
+      // The <EChart> wrapper can dispose this instance before our cleanup runs
+      // (e.g. when a filter change empties the widget so it stops rendering the
+      // chart). A disposed instance has no ZRender — getZr() returns null — so
+      // guard every teardown call; otherwise `.off` on null throws and takes
+      // the whole app down through the router error boundary.
+      if (chart.isDisposed()) return;
       chart.off("finished", buildCache);
-      chart.getZr().off("mousemove", onMouseMove);
-      chart.getZr().off("mouseout", clearHover);
+      const zr = chart.getZr();
+      if (zr) {
+        zr.off("mousemove", onMouseMove);
+        zr.off("mouseout", clearHover);
+      }
     };
   }, [chart, thresholdPx]);
 }

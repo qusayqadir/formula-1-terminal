@@ -10,7 +10,7 @@ import { MONO, useChartTheme } from "@/components/charts/theme";
 import { withAlpha } from "@/lib/colors";
 import { useLapPositions, usePitStops, useSeasonResults, useSeasonRounds } from "@/lib/queries";
 import { useFilters } from "@/state/filters";
-import { completedRounds, focusRound, statusBucket, visibleDriverIds } from "@/features/dashboard/selectors";
+import { completedRoundsWithData, focusRound, statusBucket, visibleDriverIds } from "@/features/dashboard/selectors";
 import { driverCode, shortRoundName } from "@/lib/format";
 import type { SeasonEntities } from "@/features/dashboard/entities";
 
@@ -20,13 +20,16 @@ export function PositionsAroundPits(props: { entities: SeasonEntities; className
   const { t, axisLabel, baseGrid, baseTooltip, valueAxis } = C;
 
   const roundsQuery = useSeasonRounds(filters.year);
-  const rounds = useMemo(() => completedRounds(roundsQuery.data?.items), [roundsQuery.data]);
+  const resultsQuery = useSeasonResults(filters.year, "Race");
+  const rounds = useMemo(
+    () => completedRoundsWithData(roundsQuery.data?.items, resultsQuery.data?.items),
+    [roundsQuery.data, resultsQuery.data],
+  );
   const round = focusRound(rounds, filters);
   const roundName = rounds.find((r) => r.number === round)?.name;
 
   const lapsQuery = useLapPositions(filters.year, round);
   const stopsQuery = usePitStops(filters.year, round);
-  const resultsQuery = useSeasonResults(filters.year, "Race");
 
   const option = useMemo<EChartsOption | null>(() => {
     const rows = lapsQuery.data?.rows ?? [];

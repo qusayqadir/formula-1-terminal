@@ -7,6 +7,7 @@ from langgraph.graph.message import add_messages
 RouteName = Literal[
     "REGULATION",
     "VISUALIZATION",
+    "FORMULA_1_GENERAL",
     "OUT_OF_SCOPE",
 ]
 
@@ -81,6 +82,9 @@ class AgentState(TypedDict, total=False):
     graph_of_choice: str
     chart_spec: dict
     data_visual_answer: str        # agent's natural-language summary of the rows
+
+    # General F1 Output (answered from the model's own training knowledge)
+    formula_1_general_response: str
 
 
     #Output

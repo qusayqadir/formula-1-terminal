@@ -34,7 +34,12 @@ export interface LiveDriverRow {
   /** seconds behind the car directly ahead */
   intervalSec: number | null;
   lapNumber: number;
-  /** current-lap sector times as they complete; null = not yet through */
+  /** sector splits LOCKED IN on the lap currently in progress (the board
+   *  renders these bright); null until the car crosses that split this lap.
+   *  A running car never has currentS3 (S3 only completes at the line, which
+   *  flips the lap) — the board fills not-yet-set cells with `lastLap` shown
+   *  dim, so it's always clear which splits belong to the current lap vs the
+   *  last one. Finished/retired cars carry their final lap here (all bright). */
   currentS1: number | null;
   currentS2: number | null;
   currentS3: number | null;
@@ -91,6 +96,9 @@ export interface SessionBestSectors {
 export interface LiveSnapshot {
   sessionName: string;
   circuitName: string;
+  /** venue lat/lng — lets the track map centre the basemap even when no
+   *  surveyed circuit geometry is available for this location. */
+  circuitCenter: { lat: number; lng: number };
   clockSec: number;
   leaderLap: number;
   totalLaps: number;

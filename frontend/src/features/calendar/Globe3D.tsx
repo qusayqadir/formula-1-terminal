@@ -34,7 +34,7 @@ import {
 import { MetaCard, type DotHit } from "@/features/calendar/MetaCard";
 
 const R = 1;
-const HOME_R = 3.83; // default distance (~19% out from the original 3.22)
+const HOME_R = 4.6; // default distance (20% further out than the previous 3.83)
 const HOME_PHI = ((90 - 46) * Math.PI) / 180; // camera at ~46°N — Europe
 const IDLE_RESET_MS = 4000;
 

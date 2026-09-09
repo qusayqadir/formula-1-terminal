@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       frontend: ${{ steps.filter.outputs.frontend }}
+      backend: ${{ steps.filter.outputs.backend }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -33,12 +34,16 @@ jobs:
           filters: |
             frontend:
               - 'frontend/**'
+            backend:
+              - 'app/**'
+              - 'core/**'
+              - 'requirements.txt'
 
   deploy-frontend:
     name: build frontend and deploy to s3
     needs: [test, changes]
-    # Only deploy to S3 when the push actually touched the frontend.
-    if: needs.changes.outputs.frontend == 'true'
+
+    if: github.event_name == 'push' && needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +56,11 @@ jobs:
 
       - name: Install and build frontend
         working-directory: frontend
+        env:
+          # Vite bakes VITE_* vars into the bundle at build time — must be
+          # present here, not on the server.
+          VITE_GOOGLE_MAPS_API_KEY: ${{ secrets.VITE_GOOGLE_MAPS_API_KEY }}
+          VITE_GOOGLE_MAPS_MAP_ID: ${{ secrets.VITE_GOOGLE_MAPS_MAP_ID }}
         run: |
           npm ci
           npm run build
@@ -67,6 +77,63 @@ jobs:
 
       - name: Invalidate CloudFront cache
         run: aws cloudfront create-invalidation --distribution-id ${{ secrets.AWS_CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
+
+  deploy-api:
+    name: deploy api to ec2 (via SSM)
+    needs: [test, changes]
+    # Deploy on push to main (this includes merged PRs) only — never on the
+    # pull_request event, so open PRs run checks without touching EC2. Gate on
+    # backend code having actually changed.
+    if: github.event_name == 'push' && needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Trigger deploy on EC2 via SSM
+        run: |
+          cat > params.json <<'JSON'
+          {
+            "commands": [
+              "set -euo pipefail",
+              "git config --system --add safe.directory /opt/f1-terminal || true",
+              "cd /opt/f1-terminal",
+              "git fetch --all --prune",
+              "git reset --hard origin/main",
+              "/opt/f1-terminal/.venv/bin/pip install -r requirements.txt",
+              "systemctl restart f1-api"
+            ]
+          }
+          JSON
+          cid=$(aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "deploy ${GITHUB_SHA::7}" \
+            --parameters file://params.json \
+            --query "Command.CommandId" --output text)
+          echo "Sent SSM command: $cid"
+          echo "SSM_CID=$cid" >> "$GITHUB_ENV"
+
+      - name: Wait for deploy to finish
+        run: |
+          aws ssm wait command-executed \
+            --command-id "$SSM_CID" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" || true
+          aws ssm get-command-invocation \
+            --command-id "$SSM_CID" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+            --query '{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}' \
+            --output json
+          status=$(aws ssm get-command-invocation \
+            --command-id "$SSM_CID" \
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+            --query Status --output text)
+          echo "Final status: $status"
+          test "$status" = "Success"
 
   bundle:
     name: build release bundle

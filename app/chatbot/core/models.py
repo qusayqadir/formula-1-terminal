@@ -17,3 +17,5 @@ def make_model(
 
 answer_model = make_model("claude-sonnet-5", max_tokens=8000, max_retries=3)
 analysis_model = make_model("claude-haiku-4-5", max_tokens=1000)
+# General F1 Q&A: Haiku answering from its own training knowledge, kept short.
+general_model = make_model("claude-haiku-4-5", max_tokens=600)

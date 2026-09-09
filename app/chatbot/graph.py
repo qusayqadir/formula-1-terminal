@@ -10,6 +10,7 @@ from app.chatbot.state import AgentState
 from app.chatbot.router.graph import router_graph
 from app.chatbot.data_visual.graph import data_visual_graph
 from app.chatbot.regulation.graph import regulation_graph
+from app.chatbot.formula_1_general.graph import formula_1_general_graph
 
 def out_of_scope_response(state: AgentState) -> AgentState:
     return {
@@ -43,6 +44,10 @@ def build_terminal_chat():
         data_visual_graph
     )
     builder.add_node(
+        "formula_1_general_subgraph",
+        formula_1_general_graph
+    )
+    builder.add_node(
         "out_of_scope",
         out_of_scope_response
     )
@@ -62,12 +67,14 @@ def build_terminal_chat():
         {
             "REGULATION": "regulation_subgraph",
             "VISUALIZATION": "data_visual_subgraph",
+            "FORMULA_1_GENERAL": "formula_1_general_subgraph",
             "OUT_OF_SCOPE": "out_of_scope"
         }
     )
 
     builder.add_edge("regulation_subgraph", "record_turn")
     builder.add_edge("data_visual_subgraph", "record_turn")
+    builder.add_edge("formula_1_general_subgraph", "record_turn")
     builder.add_edge("out_of_scope", "record_turn")
     builder.add_edge("record_turn", END)
 

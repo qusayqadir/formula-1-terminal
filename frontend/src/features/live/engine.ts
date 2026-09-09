@@ -14,6 +14,7 @@
 
 import { teamColor } from "@/lib/colors";
 import {
+  CIRCUIT_CENTER_LATLNG,
   CIRCUIT_REAL_NAME,
   SECTOR_SPLITS,
   SECTOR_TIME_WEIGHTS,
@@ -35,12 +36,13 @@ import type {
   WeatherState,
 } from "./types";
 
-export const SESSION_NAME = "Sakhir Grand Prix · Race";
+export const SESSION_NAME = "Azerbaijan Grand Prix · Race";
 export const CIRCUIT_NAME = CIRCUIT_REAL_NAME;
 
 /** Reference lap used to convert distance deficits to seconds — exported so
- *  the timing board can render "+N LAP" once a gap exceeds a full lap. */
-export const REFERENCE_LAP_SEC = 92.4;
+ *  the timing board can render "+N LAP" once a gap exceeds a full lap.
+ *  ~1:43 reflects race pace around the 6.0 km Baku City Circuit. */
+export const REFERENCE_LAP_SEC = 103.5;
 const BASE_LAP_SEC = REFERENCE_LAP_SEC;
 /** [min,max] total pit-lane loss per stop — randomized per stop rather than
  *  a single constant so the pit-stop tracker has something real to show. */
@@ -215,15 +217,16 @@ export class LiveRaceEngine {
       return d;
     });
 
+    // Coastal Baku afternoon (Caspian-side, breezy) rather than desert values.
     this.weather = {
-      trackTempC: 41.5,
-      airTempC: 29.2,
-      humidityPct: 38,
-      windSpeedMs: 3.4,
-      windDirDeg: 205,
-      pressureHpa: 1012,
-      rainRiskPct: 10,
-      trackTempTrend: [41.5],
+      trackTempC: 36.0,
+      airTempC: 25.5,
+      humidityPct: 54,
+      windSpeedMs: 4.6,
+      windDirDeg: 130,
+      pressureHpa: 1014,
+      rainRiskPct: 12,
+      trackTempTrend: [36.0],
     };
     this.pushRc("SESSION", "GREEN LIGHT — RACE START");
     this.pushRc("DRS", "DRS ENABLED");
@@ -402,13 +405,13 @@ export class LiveRaceEngine {
     const w = this.weather;
     const drift = (v: number, amp: number, lo: number, hi: number) =>
       Math.min(hi, Math.max(lo, v + (this.rng() - 0.5) * amp));
-    w.trackTempC = drift(w.trackTempC, 0.5, 36, 47);
-    w.airTempC = drift(w.airTempC, 0.25, 26, 32);
-    w.humidityPct = drift(w.humidityPct, 1.6, 25, 60);
-    w.windSpeedMs = drift(w.windSpeedMs, 0.7, 0.5, 9);
+    w.trackTempC = drift(w.trackTempC, 0.5, 30, 42);
+    w.airTempC = drift(w.airTempC, 0.25, 22, 29);
+    w.humidityPct = drift(w.humidityPct, 1.6, 42, 70);
+    w.windSpeedMs = drift(w.windSpeedMs, 0.7, 1.5, 11);
     w.windDirDeg = (w.windDirDeg + (this.rng() - 0.5) * 14 + 360) % 360;
-    w.pressureHpa = drift(w.pressureHpa, 0.4, 1005, 1020);
-    w.rainRiskPct = drift(w.rainRiskPct, 3, 0, 40);
+    w.pressureHpa = drift(w.pressureHpa, 0.4, 1007, 1021);
+    w.rainRiskPct = drift(w.rainRiskPct, 3, 0, 45);
   }
 
   private stepTrend(dt: number) {
@@ -548,6 +551,16 @@ export class LiveRaceEngine {
       const activeSector: 1 | 2 | 3 = frac < SECTOR_SPLITS[0] ? 1 : frac < SECTOR_SPLITS[1] ? 2 : 3;
       const inPitWindow = d.pittingThisLap && activeSector === 3;
       const pitElapsedSec = inPitWindow ? Math.min(d.pitLossSec, Math.max(0, d.lapElapsed - (d.plan[0] + d.plan[1]))) : null;
+
+      // Splits locked in on the CURRENT lap (bright on the board). A running
+      // car only ever has S1/S2 mid-lap — S3 lands at the line, which flips
+      // the lap — so currentS3 stays null while running and the board fills
+      // that cell with the dim `lastLap` value. Finished/retired cars freeze
+      // on their final lap (all three carried here, shown bright).
+      const finishedOrOut = d.status === "FINISHED" || d.status === "RETIRED";
+      const currentS1 = finishedOrOut ? d.lastLap?.s1 ?? null : d.doneSectors[0];
+      const currentS2 = finishedOrOut ? d.lastLap?.s2 ?? null : d.doneSectors[1];
+      const currentS3 = finishedOrOut ? d.lastLap?.s3 ?? null : null;
       return {
         id: d.id,
         code: d.entry.code,
@@ -559,9 +572,9 @@ export class LiveRaceEngine {
         gapToLeaderSec: d.status === "RETIRED" ? null : i === 0 ? 0 : gapSec,
         intervalSec: d.status === "RETIRED" ? null : intervalSec,
         lapNumber: d.lapNumber,
-        currentS1: d.doneSectors[0],
-        currentS2: d.doneSectors[1],
-        currentS3: null,
+        currentS1,
+        currentS2,
+        currentS3,
         activeSector,
         lastLap: d.lastLap,
         bestLapSec: d.bestLapSec,
@@ -584,6 +597,7 @@ export class LiveRaceEngine {
     return {
       sessionName: SESSION_NAME,
       circuitName: CIRCUIT_NAME,
+      circuitCenter: CIRCUIT_CENTER_LATLNG,
       clockSec: this.t,
       leaderLap: this.leaderLapNow(),
       totalLaps: TOTAL_LAPS,

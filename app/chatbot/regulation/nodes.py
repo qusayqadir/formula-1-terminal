@@ -133,16 +133,41 @@ def rerank_docs(state: AgentState):
         query=state["user_query"],
         documents=[d["text"] for d in docs],
         model="rerank-2.5-lite",
-        top_k=20,
+        top_k=8,
     )
 
     return {
         "reranked_docs": [docs[r.index] for r in reranked.results]
     }
 
+# Hard ceiling on the retrieved-context we feed the LLMs. FIA regulation chunks
+# are very large (~50K chars / ~13K tokens each), so an unbounded join of the
+# reranked set can blow past the model context window — the Haiku validator
+# (200K tokens) overflowed at 258K on a 20-chunk join. ~160K chars ≈ ~40K
+# tokens leaves ample room for the prompt, question, candidate answer, and
+# output on both Sonnet (generation) and Haiku (validation).
+MAX_CONTEXT_CHARS = 160_000
+
+
+def _build_context(reranked_docs: list[dict]) -> str:
+    """Join reranked chunks (already ordered most-relevant-first) up to a fixed
+    character budget, truncating the chunk that crosses the budget rather than
+    dropping it, so the highest-ranked context always makes it in."""
+    parts: list[str] = []
+    budget = MAX_CONTEXT_CHARS
+    for doc in reranked_docs:
+        if budget <= 0:
+            break
+        text = doc.get("text", "")
+        if len(text) > budget:
+            text = text[:budget]
+        parts.append(text)
+        budget -= len(text)
+    return "\n\n---\n\n".join(parts)
+
 def generate_response(state: AgentState) -> AgentState:
-    
-    context = "\n\n---\n\n".join(d["text"] for d in state["reranked_docs"])
+
+    context = _build_context(state["reranked_docs"])
 
     structured_model = answer_model.with_structured_output(RegulationAnswer)
 
@@ -165,7 +190,7 @@ def validate_response(state: AgentState) -> AgentState:
 
     validator = analysis_model.with_structured_output(ValidationResponse)
 
-    context = "\n\n---\n\n".join(d["text"] for d in state["reranked_docs"])
+    context = _build_context(state["reranked_docs"])
 
     validation_response = validator.invoke(
         [

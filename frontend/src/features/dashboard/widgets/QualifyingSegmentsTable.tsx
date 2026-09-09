@@ -5,9 +5,9 @@
 import { useMemo } from "react";
 import { AnalyticsCard } from "@/components/ui/AnalyticsCard";
 import { useChartTheme } from "@/components/charts/theme";
-import { useQualifyingSegments, useSeasonRounds } from "@/lib/queries";
+import { useQualifyingSegments, useSeasonResults, useSeasonRounds } from "@/lib/queries";
 import { useFilters } from "@/state/filters";
-import { completedRounds, focusRound, visibleDriverIds } from "@/features/dashboard/selectors";
+import { completedRoundsWithData, focusRound, visibleDriverIds } from "@/features/dashboard/selectors";
 import type { SeasonEntities } from "@/features/dashboard/entities";
 import { driverCode, durationToSeconds, formatGap, formatLapTime, sanitizeLapSeconds, shortRoundName } from "@/lib/format";
 
@@ -64,7 +64,11 @@ export function QualifyingSegmentsTable(props: { entities: SeasonEntities; class
   const { t } = useChartTheme();
 
   const roundsQuery = useSeasonRounds(filters.year);
-  const rounds = useMemo(() => completedRounds(roundsQuery.data?.items), [roundsQuery.data]);
+  const resultsQuery = useSeasonResults(filters.year, "Race");
+  const rounds = useMemo(
+    () => completedRoundsWithData(roundsQuery.data?.items, resultsQuery.data?.items),
+    [roundsQuery.data, resultsQuery.data],
+  );
   const round = focusRound(rounds, filters);
   const roundName = rounds.find((r) => r.number === round)?.name;
 

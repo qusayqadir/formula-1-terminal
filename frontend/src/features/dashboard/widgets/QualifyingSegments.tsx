@@ -10,9 +10,9 @@ import { EChart } from "@/components/charts/EChart";
 import { MONO, useChartTheme } from "@/components/charts/theme";
 import { useNearestLineHover } from "@/components/charts/useNearestLineHover";
 import { withAlpha } from "@/lib/colors";
-import { useQualifyingSegments, useSeasonRounds } from "@/lib/queries";
+import { useQualifyingSegments, useSeasonResults, useSeasonRounds } from "@/lib/queries";
 import { useFilters } from "@/state/filters";
-import { completedRounds, focusRound } from "@/features/dashboard/selectors";
+import { completedRoundsWithData, focusRound } from "@/features/dashboard/selectors";
 import type { SeasonEntities } from "@/features/dashboard/entities";
 import { durationToSeconds, driverCode, sanitizeLapSeconds, shortRoundName } from "@/lib/format";
 
@@ -26,7 +26,11 @@ export function QualifyingSegments(props: { entities: SeasonEntities; className?
   useNearestLineHover(chart);
 
   const roundsQuery = useSeasonRounds(filters.year);
-  const rounds = useMemo(() => completedRounds(roundsQuery.data?.items), [roundsQuery.data]);
+  const resultsQuery = useSeasonResults(filters.year, "Race");
+  const rounds = useMemo(
+    () => completedRoundsWithData(roundsQuery.data?.items, resultsQuery.data?.items),
+    [roundsQuery.data, resultsQuery.data],
+  );
   const round = focusRound(rounds, filters);
   const roundName = rounds.find((r) => r.number === round)?.name;
 

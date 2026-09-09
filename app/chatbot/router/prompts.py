@@ -52,8 +52,30 @@ Follow-ups that continue a data conversation (also route to VISUALIZATION):
 - and for Ferrari?
 - make that a line chart instead
 
+FORMULA_1_GENERAL:
+Use for genuine Formula 1 questions that are conceptual or explanatory — "what
+is X", "how does X work", the general format/history of the sport — and that are
+NOT a lookup of a specific FIA regulation article and NOT a request answerable
+from the historical race database.
+
+Examples:
+- What is DRS and how does it work?
+- How does a Formula 1 race weekend work?
+- What is the difference between the drivers' and constructors' championships?
+- Explain how F1 tyre compounds and pit strategy work in general.
+- What does a yellow/blue/black flag mean?
+- How does an F1 hybrid power unit work at a high level?
+- What is a formation lap? What is a safety car?
+- Give me a general overview of the history of Formula 1.
+
+Prefer REGULATION over FORMULA_1_GENERAL when the question turns on the exact
+letter of a regulation (specific article numbers, precise cost-cap figures,
+component allocations, penalties). Prefer VISUALIZATION when the user wants data,
+numbers, comparisons, or a chart.
+
 OUT_OF_SCOPE:
-Use when the request belongs to neither supported domain.
+Use when the request belongs to none of the supported domains — i.e. it is not
+about Formula 1 at all.
 
 Examples:
 - Write a cookie recipe.

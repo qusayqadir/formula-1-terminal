@@ -34,9 +34,9 @@ import {
   XAxis,
 } from "@/components/dither-kit";
 import { useChartTheme } from "@/components/charts/theme";
-import { usePitStops, useSeasonRounds } from "@/lib/queries";
+import { usePitStops, useSeasonResults, useSeasonRounds } from "@/lib/queries";
 import { useFilters } from "@/state/filters";
-import { completedRounds, focusRound, visibleDriverIds } from "@/features/dashboard/selectors";
+import { completedRoundsWithData, focusRound, visibleDriverIds } from "@/features/dashboard/selectors";
 import { driverCode, shortRoundName } from "@/lib/format";
 import type { SeasonEntities } from "@/features/dashboard/entities";
 
@@ -58,7 +58,11 @@ export function TireStints(props: { entities: SeasonEntities; className?: string
   const { filters } = useFilters();
   const { t } = useChartTheme();
   const roundsQuery = useSeasonRounds(filters.year);
-  const rounds = useMemo(() => completedRounds(roundsQuery.data?.items), [roundsQuery.data]);
+  const resultsQuery = useSeasonResults(filters.year, "Race");
+  const rounds = useMemo(
+    () => completedRoundsWithData(roundsQuery.data?.items, resultsQuery.data?.items),
+    [roundsQuery.data, resultsQuery.data],
+  );
   const round = focusRound(rounds, filters);
   const roundName = rounds.find((r) => r.number === round)?.name;
 

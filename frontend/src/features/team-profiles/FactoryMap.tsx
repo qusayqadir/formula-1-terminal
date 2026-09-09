@@ -8,6 +8,8 @@ export interface FactoryLocation {
 }
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+// Cloud-based custom map style; falls back to a stable literal if unset.
+const MAP_ID = (import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined) ?? "team-factory-map";
 
 /** Zoomable Google Map of the team's factory. There's no factory-location
  *  data source yet (bronze schema has no such table) — `factory` is always
@@ -33,7 +35,7 @@ export function FactoryMap(props: { factory?: FactoryLocation; className?: strin
           gestureHandling="cooperative"
           disableDefaultUI={false}
           zoomControl
-          mapId="team-factory-map"
+          mapId={MAP_ID}
           style={{ width: "100%", height: "100%" }}
         >
           <Marker position={{ lat: props.factory.lat, lng: props.factory.lng }} title={props.factory.label} />

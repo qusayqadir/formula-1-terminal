@@ -43,15 +43,38 @@ function SectorCell(props: {
   sessionBest: (number | null)[];
 }) {
   const { row, index } = props;
-  const value = index === 0 ? row.currentS1 : index === 1 ? row.currentS2 : row.currentS3;
-  const live = row.status !== "RETIRED" && row.status !== "FINISHED" && row.activeSector === index + 1;
+  // Split locked in on the current lap (bright) vs the last lap's value used
+  // to fill the cell until this lap re-sets it (dim). currentS1/S2/S3 hold
+  // only what's been set THIS lap; lastLap backfills the rest.
+  const thisLap = index === 0 ? row.currentS1 : index === 1 ? row.currentS2 : row.currentS3;
+  const lastLapVal = row.lastLap ? [row.lastLap.s1, row.lastLap.s2, row.lastLap.s3][index] : null;
+  const isThisLap = thisLap != null;
+  const value = thisLap ?? lastLapVal;
+  const active = row.status !== "RETIRED" && row.status !== "FINISHED" && row.activeSector === index + 1;
+
   if (value == null) {
+    // lap 1, nothing set yet
     return (
       <span className="text-right font-mono text-[13.5px] tabular-nums text-mut">
-        {live ? <span className="animate-pulse text-sub">···</span> : "—"}
+        {active ? <span className="animate-pulse text-sub">···</span> : "—"}
       </span>
     );
   }
+  if (!isThisLap) {
+    // Filled from last lap — dim, so it never reads as a current-lap split.
+    // The sector being driven right now gets an accent underline "cursor" so
+    // you can see where the car is without mistaking last lap's time for now's.
+    return (
+      <span
+        className={`text-right font-mono text-[13.5px] tabular-nums text-mut ${
+          active ? "underline decoration-accent decoration-2 underline-offset-4" : ""
+        }`}
+      >
+        {value.toFixed(3)}
+      </span>
+    );
+  }
+  // Locked in THIS lap — bright, with timing-screen best colouring.
   const sb = props.sessionBest[index];
   const pb = row.bestS[index];
   const isSession = sb != null && value <= sb + EPS;
@@ -59,7 +82,7 @@ function SectorCell(props: {
   return (
     <span
       className={`text-right font-mono text-[13.5px] tabular-nums ${
-        isSession ? "font-semibold text-blue" : isPersonal ? "font-semibold text-pos" : "text-sub"
+        isSession ? "font-semibold text-blue" : isPersonal ? "font-semibold text-pos" : "text-ink"
       }`}
     >
       {value.toFixed(3)}
@@ -88,7 +111,7 @@ export function LiveTimingBoard(props: { snapshot: LiveSnapshot; className?: str
     <AnalyticsCard
       eyebrow="Live · Timing"
       title="Live classification"
-      subtitle={`lap ${snapshot.leaderLap}/${snapshot.totalLaps} · gap / interval / sectors · sim feed`}
+      subtitle={`lap ${snapshot.leaderLap}/${snapshot.totalLaps} · sectors: bright = this lap · dim = last lap · sim feed`}
       expandable
       className={props.className}
       bodyClassName="overflow-auto"

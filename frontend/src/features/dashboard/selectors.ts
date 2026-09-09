@@ -27,6 +27,28 @@ export function completedRounds(items: Round[] | undefined): RoundOption[] {
     .map((r) => ({ number: r.number as number, name: r.name }));
 }
 
+/** Completed rounds that also have ingested session data. A round whose date
+ *  has passed but whose results haven't been ingested yet (e.g. the newest race,
+ *  still mid-pipeline) is dropped, so "Latest" resolves to the newest round the
+ *  terminal actually has data for. This keeps every session-level widget on the
+ *  same round as the results-driven widgets (which derive their rounds from the
+ *  results payload via roundsFromResults) instead of the two families splitting
+ *  across different rounds and half the dashboard rendering "no data" states.
+ *  Falls back to all date-completed rounds while results are still loading, so
+ *  the widgets aren't briefly empty during the initial fetch. */
+export function completedRoundsWithData(
+  items: Round[] | undefined,
+  resultRows: SessionResult[] | undefined,
+): RoundOption[] {
+  const completed = completedRounds(items);
+  const withData = new Set<number>();
+  for (const r of resultRows ?? []) {
+    if (r.round_number != null) withData.add(r.round_number);
+  }
+  if (withData.size === 0) return completed;
+  return completed.filter((r) => withData.has(r.number));
+}
+
 /** The round session-level widgets focus on: explicit selection or latest. */
 export function focusRound(rounds: RoundOption[], filters: DashboardFilters): number | null {
   if (filters.round != null) return filters.round;
