@@ -8,6 +8,7 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { ChatChart } from "@/features/chat/ChatChart";
+import { Markdown } from "@/components/ui/Markdown";
 import type { Message } from "@/features/chat/types";
 
 export function MessageThread({
@@ -72,9 +73,7 @@ export function MessageThread({
                   )}
                 </div>
               )}
-              <p className="mt-1.5 whitespace-pre-wrap text-[13px] leading-relaxed text-ink">
-                {m.content}
-              </p>
+              <Markdown content={m.content} className="mt-1.5" />
               {m.chart && <ChatChart spec={m.chart.spec} data={m.chart.data} />}
             </div>
           </div>
