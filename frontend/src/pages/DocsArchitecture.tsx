@@ -20,7 +20,7 @@ export function DocsArchitecture() {
           Cloud infrastructure
         </h2>
         <p className="mt-2 max-w-xl text-xs leading-relaxed text-sub">
-          Placeholder text — a walkthrough of the AWS deployment: how live and
+          A walkthrough of the AWS deployment: how live and
           historic F1 data is ingested, streamed, processed, and served through
           the terminal. Describe the ECR/Fargate producers, the MQTT/Kinesis
           streaming layer, storage, and the API tier here.
@@ -40,7 +40,7 @@ export function DocsArchitecture() {
           Chat routing graph
         </h2>
         <p className="mt-2 max-w-xl text-xs leading-relaxed text-sub">
-          Placeholder text — the LangGraph <code className="font-mono text-[11px] text-ink">terminal_chat</code> flow:
+          The LangGraph <code className="font-mono text-[11px] text-ink">terminal_chat</code> flow:
           a router classifies each question and dispatches it to the regulation
           RAG subgraph, the data-visualization (text-to-SQL) subgraph, or an
           out-of-scope response. Explain the nodes and edges shown below.
@@ -61,7 +61,7 @@ export function DocsArchitecture() {
           LangSmith observability
         </h2>
         <p className="mt-2 max-w-xl text-xs leading-relaxed text-sub">
-          Placeholder text — tracing and evaluation of the chat graph: per-run
+          Tracing and evaluation of the chat graph: per-run
           traces, latency and token accounting, and route-classifier eval scores
           captured in LangSmith.
         </p>
@@ -73,7 +73,7 @@ export function DocsArchitecture() {
           AWS billing
         </h2>
         <p className="mt-2 max-w-xl text-xs leading-relaxed text-sub">
-          Placeholder text — cost breakdown of the deployment: current spend by
+          Cost breakdown of the deployment: current spend by
           service alongside forecasted month-end cost.
         </p>
         <ImagePlaceholder label="AWS Billing (Cost / Predicted Cost)" />
@@ -84,7 +84,7 @@ export function DocsArchitecture() {
           Database schema
         </h2>
         <p className="mt-2 max-w-xl text-xs leading-relaxed text-sub">
-          Placeholder text — the Postgres data model: seasons, rounds, sessions,
+          The Postgres data model: seasons, rounds, sessions,
           results, drivers, teams, and circuits, and how they relate.
         </p>
         {/* Schema render is very tall — scroll it inside a fixed-height frame

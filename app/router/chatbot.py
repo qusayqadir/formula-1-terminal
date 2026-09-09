@@ -21,8 +21,11 @@ router = APIRouter(prefix="/chatbot", tags=["chatbot"])
 # Only these nodes actually set final_answer for this turn. Other nodes (e.g.
 # the router subgraph) share the full AgentState schema, so a stale
 # final_answer left over from a prior turn in the checkpoint can otherwise
-# reappear in their reported update too.
-FINAL_ANSWER_NODES = {"respond", "out_of_scope"}
+# reappear in their reported update too. The regulation and data-viz subgraphs
+# both terminate in `respond`; the formula_1_general subgraph terminates in
+# `generate_general_response` — omitting it here means general-knowledge answers
+# are produced but never streamed to the client (no `final` event).
+FINAL_ANSWER_NODES = {"respond", "out_of_scope", "generate_general_response"}
 
 # The only structured-output string fields we treat as "thinking" text worth
 # streaming to the frontend, character-by-character, as the model writes them.
