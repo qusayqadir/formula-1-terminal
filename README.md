@@ -17,20 +17,6 @@ race database (text-to-SQL → charts).
 
 ---
 
-<<<<<<< HEAD
-### Chatbot Langmsith Trace Example
-<img width="1438" height="876" alt="Screenshot 2026-09-09 at 2 34 48 PM" src="https://github.com/user-attachments/assets/2c98ee39-8420-4dd4-8ec1-397f0f1acafe" />
-
-
-### Chatbot Langsmith Monitoring Example
-<img width="1225" height="884" alt="Screenshot 2026-09-09 at 2 35 17 PM" src="https://github.com/user-attachments/assets/75fe7029-dab4-4e6f-8544-9aa6268bfd73" />
-
-
-### Database Schema: 
-<img width="2358" height="8468" alt="f1-terminal-schema" src="https://github.com/user-attachments/assets/4fe54891-6f8d-4145-844e-c0f0411548cf" />
-=======
-
-
 ## AWS Architecture
 
 ![AWS F1-Terminal Architecture](frontend/src/assets/architecture/aws-architecture.png)
@@ -82,6 +68,15 @@ it's written, then the final answer. The LLM is **Claude** via `langchain-anthro
 Both the regulation and data-viz subgraphs run a **validate → rewrite** loop so a weak
 first answer is refined rather than returned. Route classification has its own eval
 harness and datasets in `app/chatbot/evals/`.
+
+
+### Chatbot Langmsith Trace Example
+<img width="1438" height="876" alt="Screenshot 2026-09-09 at 2 34 48 PM" src="https://github.com/user-attachments/assets/2c98ee39-8420-4dd4-8ec1-397f0f1acafe" />
+
+
+### Chatbot Langsmith Monitoring Example
+<img width="1225" height="884" alt="Screenshot 2026-09-09 at 2 35 17 PM" src="https://github.com/user-attachments/assets/75fe7029-dab4-4e6f-8544-9aa6268bfd73" />
+
 
 ---
 
@@ -181,4 +176,4 @@ LangGraph · LangChain · Anthropic Claude · Voyage embeddings · boto3/aioboto
   ·   **Frontend** Vite · React · TypeScript · Tailwind v4 · TanStack Query · ECharts
   ·   **Cloud** EC2 · Fargate · Lambda · SQS · EventBridge · ECR · S3 · CloudFront · RDS
   ·   **Data** OpenF1 (live + historic) · FIA regulation PDFs · Polymarket
->>>>>>> af89d6c (Enhance README.md with detailed product descriptions, AWS architecture, and chatbot workflow. Streamline the live data producer code by removing outdated comments and improving clarity.)
+
