@@ -1,40 +1,3 @@
-"""Always-on live stream worker (single EC2 box, systemd Restart=always).
-
-This process runs 24/7 and self-gates on the OpenF1 calendar:
-
-  • RACE session live now  -> subscribe to the OpenF1 MQTT firehose and fan each
-    topic out to SQS (the real live path). Only `session_type == "Race"` counts —
-    never Practice / Qualifying / Sprint / Sprint Qualifying.
-
-  • No race live            -> loop-replay the bundled mock corpus
-    (`mock_openf1_producer_messages_bahrain.json`) into the *same* SQS queues, with
-    every timestamp rebased to "now" on each pass, so the dashboard shows a
-    continuously-streaming demo session instead of a dead screen between races.
-
-Both sources feed one asyncio buffer that a single `dispatcher` drains to SQS,
-so the downstream consumers (timings / telemetry / session_events Lambdas) are
-identical for live and mock — the only difference the frontend sees is which
-`session_key` is current (live session vs the mock 10045), surfaced via the
-`/api/v1/live/status` endpoint.
-
-NOTE on the mock loop: rebasing timestamps to "now" makes the timestamp-keyed
-tables (interval/position/car_data/location/weather) gain fresh rows every pass
-(that's what creates the streaming feel). Left running for days that grows the
-mock session unbounded — add a retention/TTL prune on `bronze.live_*` for
-`session_key = 10045`, or stop the demo loop when no client is watching, if you
-run this continuously. Lap/stint/pit rows are keyed by lap/stint number and just
-upsert in place, so they don't grow.
-
-Env:
-    openf1_username / openf1_password    OpenF1 MQTT/token creds (live path)
-    session_sqs_url / telemetry_sqs_url / timings_sqs_url   SQS queue URLs
-    DATABASE_URL                         Postgres (bronze.live_focus_selection)
-    AWS_REGION                (us-east-1)  SQS region
-    SESSIONS_YEAR             (current)    year to query for the race calendar
-    RACE_TAIL_BUFFER_MINUTES  (75)         keep streaming past scheduled end (red flags)
-    MOCK_REPLAY_SECONDS       (600)        wall-clock length of one mock replay pass
-    MOCK_MESSAGES_PATH        (bundled)    override the mock corpus location
-"""
 import asyncio
 import json
 import logging
@@ -92,7 +55,7 @@ TOPIC_BUCKET: dict[str, str] = {
 }
 
 
-# ── self-gating / mock config ──────────────────────────────────────────────
+
 SESSIONS_YEAR = int(os.environ.get("SESSIONS_YEAR", datetime.now(timezone.utc).year))
 RACE_TAIL_BUFFER = float(os.environ.get("RACE_TAIL_BUFFER_MINUTES", "75")) * 60
 MOCK_REPLAY_SECONDS = float(os.environ.get("MOCK_REPLAY_SECONDS", "600"))
@@ -145,7 +108,7 @@ def _load_focus() -> dict[int, set[int]]:
 
 
 async def focus_refresher() -> None:
-    """Refresh the in-memory focus map from bronze.live_focus_selection every ~10s."""
+
     global focus
     while True:
         try:
@@ -172,7 +135,7 @@ async def get_access_token() -> str:
         return resp.json()["access_token"]
 
 
-# ── race-calendar gating ───────────────────────────────────────────────────
+
 class RaceWindow(NamedTuple):
     session_key: int
     meeting_key: int | None
@@ -197,11 +160,7 @@ def _parse_ts(value: str | None) -> float | None:
 
 
 async def fetch_race_windows(http: httpx.AsyncClient) -> list[RaceWindow]:
-    """Pull this year's Race sessions from the OpenF1 sessions API.
 
-    Only `session_type == "Race"` — Practice / Qualifying / Sprint /
-    Sprint Qualifying are deliberately excluded.
-    """
     resp = await http.get(
         "https://api.openf1.org/v1/sessions",
         params={"year": SESSIONS_YEAR, "session_type": "Race"},
@@ -225,7 +184,7 @@ async def fetch_race_windows(http: httpx.AsyncClient) -> list[RaceWindow]:
 
 
 async def race_window_now(http: httpx.AsyncClient) -> RaceWindow | None:
-    """The race window currently in progress, or None. Caches the calendar."""
+
     if time.monotonic() - _windows_cache["at"] > WINDOWS_REFRESH_SECONDS:
         try:
             _windows_cache["data"] = await fetch_race_windows(http)
@@ -239,7 +198,7 @@ async def race_window_now(http: httpx.AsyncClient) -> RaceWindow | None:
     return None
 
 
-# ── mock replay helpers ────────────────────────────────────────────────────
+
 def _event_time(record: dict) -> float:
     ts = record.get("date") or record.get("date_start")
     return _parse_ts(ts) or 0.0
@@ -285,11 +244,7 @@ def _rebased_payload(record: dict, offset: float) -> str:
 
 
 async def run_mock_replay(buffer: asyncio.Queue, http: httpx.AsyncClient) -> None:
-    """Loop the mock corpus into SQS until a real race goes live.
 
-    Each pass rebases the corpus so it 'starts now', giving the dashboard a
-    live-looking, continuously-advancing demo session between races.
-    """
     records = load_mock_records()
     if not records:
         logger.warning("mock corpus empty; sleeping instead of replaying")
@@ -325,10 +280,8 @@ async def run_mock_replay(buffer: asyncio.Queue, http: httpx.AsyncClient) -> Non
             await buffer.put((bucket, _rebased_payload(record, offset)))
 
 
-# ── live OpenF1 path ───────────────────────────────────────────────────────
+
 async def run_live_producer(buffer: asyncio.Queue, window: RaceWindow) -> None:
-    """Subscribe to the OpenF1 MQTT firehose and stream to SQS until the race
-    window ends. Reconnects with backoff on MQTT errors within the window."""
     backoff = 1
     while _now() < window.end:
         try:
