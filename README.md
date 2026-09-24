@@ -1,3 +1,5 @@
+check it out here:  https://d3bovki3k931ui.cloudfront.net/ 
+
 # Formula 1 Bloomberg Terminal
 
 A Bloomberg-style analytics terminal for Formula 1. It ingests decades of historic
